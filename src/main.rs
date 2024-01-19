@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use browser_engine::parser::html::Parser;
+use based::parser::html::Parser;
 
 fn main() {
     let mut parser = Parser::new();
