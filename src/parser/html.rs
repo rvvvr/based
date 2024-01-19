@@ -8,32 +8,32 @@ use crate::{dom::{Document, DOMCoordinate, DOMElement, Node}, function};
 #[derive(Derivative, Debug)]
 #[derivative(Default(new="true"))]
 pub struct Parser {
-    pub nesting_level: usize,
-    pub pause: bool,
-    pub insertion_mode: InsertionMode,
-    pub insertion_mode_origin: InsertionMode,
-    pub using_rules_of: Option<InsertionMode>,
-    pub source: String,
-    pub source_idx: usize,
-    pub open_elements: Vec<OpenElement>,
-    pub scripting_enabled: bool,
-    pub tokenization_state: TokenizationState,
-    pub tokenization_state_origin: TokenizationState,
-    pub current_token: Token,
-    pub emit_buffer: VecDeque<Token>,
-    pub tokens_available: bool,
-    pub document: Document,
-    pub head_pointer: Option<DOMCoordinate>,
-    pub temp_buffer: String,
-    pub last_start_tag: String,
+    nesting_level: usize,
+    pause: bool,
+    insertion_mode: InsertionMode,
+    insertion_mode_origin: InsertionMode,
+    using_rules_of: Option<InsertionMode>,
+    source: String,
+    source_idx: usize,
+    open_elements: Vec<OpenElement>,
+    scripting_enabled: bool,
+    tokenization_state: TokenizationState,
+    tokenization_state_origin: TokenizationState,
+    current_token: Token,
+    emit_buffer: VecDeque<Token>,
+    tokens_available: bool,
+    document: Document,
+    head_pointer: Option<DOMCoordinate>,
+    temp_buffer: String,
+    last_start_tag: String,
     #[derivative(Default(value = "true"))]
-    pub frameset_ok: bool,
-    pub active_formatting_elements: Vec<DOMCoordinate>,
-    pub done_parsing: bool,
+    frameset_ok: bool,
+    active_formatting_elements: Vec<DOMCoordinate>,
+    done_parsing: bool,
 }
 
 impl Parser {
-    pub fn normalize_source(&mut self) -> Result<(), ParserError> {
+    fn normalize_source(&mut self) -> Result<(), ParserError> {
         self.source = self.source.replace("\u{000D}\u{000A}", "\u{000A}")
                     .replace("\u{000D}", "\u{000A}");
         Ok(())
@@ -50,7 +50,7 @@ impl Parser {
         }
     }
 
-    pub fn tokenize(&mut self) -> Result<(), ParserError> {
+    fn tokenize(&mut self) -> Result<(), ParserError> {
         loop {
             let result = match &self.tokenization_state {
                 TokenizationState::Data => {
@@ -103,7 +103,10 @@ impl Parser {
                 },
                 TokenizationState::BeforeAttributeName => {
                     self.tokenize_before_attribute_name()?
-                }
+                },
+                TokenizationState::AttributeName => {
+                    self.tokenize_attribute_name()?
+                },
                 a => {
                     do yeet ParserError::UnimplementedTokenizationState(*a);
                 },
@@ -114,11 +117,11 @@ impl Parser {
         }
     }
 
-    pub fn current_element(&self) -> Option<OpenElement> {
+    fn current_element(&self) -> Option<OpenElement> {
         self.open_elements.last().cloned()
     }
 
-    pub fn emit(&mut self, token: Token) -> Result<(), ParserError> {
+    fn emit(&mut self, token: Token) -> Result<(), ParserError> {
         self.tokens_available = true;
         if let Token::StartTag { ref name, ..} = token {
             self.last_start_tag = name.to_string();
@@ -127,7 +130,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn emit_current(&mut self) -> Result<(), ParserError> {
+    fn emit_current(&mut self) -> Result<(), ParserError> {
         self.tokens_available = true;
         if let Token::StartTag { ref name, .. } = self.current_token {
             self.last_start_tag = name.to_string();
@@ -136,7 +139,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn emit_temp_buffer(&mut self) -> Result<(), ParserError> {
+    fn emit_temp_buffer(&mut self) -> Result<(), ParserError> {
         let mut tokens = vec![];
         for char in self.temp_buffer.chars() {
             tokens.push(Token::Character { char });
@@ -146,14 +149,14 @@ impl Parser {
         Ok(())
     }
 
-    pub fn reprocess_token(&mut self, token: Token, new_mode: InsertionMode) -> Result<(), ParserError> {
+    fn reprocess_token(&mut self, token: Token, new_mode: InsertionMode) -> Result<(), ParserError> {
         self.emit_buffer.push_front(token);
         self.insertion_mode = new_mode;
         self.tokens_available = true;
         Ok(())
     }
 
-    pub fn handle_tokens(&mut self) -> Result<(), ParserError> {
+    fn handle_tokens(&mut self) -> Result<(), ParserError> {
         self.tokens_available = false;
         println!("{:#?}", self);
         while let Some(token) = self.emit_buffer.pop_front() {
@@ -193,7 +196,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_initial(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_initial(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Doctype { name, public_id, system_id, force_quirks } => {
                 self.document.insert_document_type(name, system_id, public_id, force_quirks);
@@ -209,7 +212,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_before_html(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_before_html(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
             Token::Comment { data } => {
@@ -227,7 +230,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_before_head(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_before_head(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
             Token::StartTag { name, .. } if name == "head" => {
@@ -243,7 +246,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_in_head(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_in_head(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
             Token::StartTag { ref name, .. } if name == "title" => {
@@ -260,7 +263,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_after_head(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_after_head(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
                 self.insert_character(char)?;
@@ -278,7 +281,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_in_body(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_in_body(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if char == '\u{0000}' => {},
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
@@ -333,7 +336,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_text(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_text(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } => {
                 self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).data.push(char);
@@ -352,7 +355,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_after_body(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_after_body(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
                 self.handle_token_for_in_body(token)?
@@ -368,7 +371,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn handle_token_for_after_after_body(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_after_after_body(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
                 self.handle_token_for_in_body(token)?
@@ -383,7 +386,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn generic_rcdata(&mut self, token: Token, raw_text: bool) -> Result<(), ParserError> {
+    fn generic_rcdata(&mut self, token: Token, raw_text: bool) -> Result<(), ParserError> {
         if let Token::StartTag { name, ..} = token {
             let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name);
             self.open_elements.push(OpenElement { coordinate: coordinate.clone() });
@@ -400,7 +403,7 @@ impl Parser {
         }
     }
 
-    pub fn consume(&mut self) -> Char {
+    fn consume(&mut self) -> Char {
         if let Some(char) = self.source.chars().nth(self.source_idx) {
             self.source_idx += 1;
             Char::Char(char)
@@ -409,12 +412,12 @@ impl Parser {
         }
     }
 
-    pub fn reconsume(&mut self, next_state: TokenizationState) {
+    fn reconsume(&mut self, next_state: TokenizationState) {
         self.source_idx = self.source_idx.saturating_sub(1);
         self.tokenization_state = next_state;
     }
 
-    pub fn insert_character(&mut self, c: char) -> Result<(), ParserError> {
+    fn insert_character(&mut self, c: char) -> Result<(), ParserError> {
         let current_node = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate);
         if ["table", "tbody", "tfoot", "thead", "tr"].contains(&current_node.tag_name.as_str()) {
             todo!("Foster parenting")
@@ -437,7 +440,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_data(&mut self) -> Result<(), ParserError> {
+    fn tokenize_data(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('<') => {
                 self.tokenization_state = TokenizationState::TagOpen;
@@ -452,7 +455,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_tag_open(&mut self) -> Result<(), ParserError> {
+    fn tokenize_tag_open(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('!') => {
                 self.tokenization_state = TokenizationState::MarkupDeclarationOpen;
@@ -474,7 +477,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_end_tag_open(&mut self) -> Result<(), ParserError> {
+    fn tokenize_end_tag_open(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char(c) if ('a'..='z').contains(&c) || ('A'..='Z').contains(&c) => {
                 self.current_token = Token::EndTag { name: String::new() };
@@ -498,7 +501,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_tag_name(&mut self) -> Result<(), ParserError> {
+    fn tokenize_tag_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 self.tokenization_state = TokenizationState::BeforeAttributeName;
@@ -545,7 +548,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_markup_declaration_open(&mut self) -> Result<(), ParserError> {
+    fn tokenize_markup_declaration_open(&mut self) -> Result<(), ParserError> {
         if &self.source[self.source_idx..self.source_idx + 2] == "--" {
             self.source_idx += 2;
             self.tokenization_state = TokenizationState::CommentStart;
@@ -561,7 +564,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_doctype(&mut self) -> Result<(), ParserError> {
+    fn tokenize_doctype(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 self.tokenization_state = TokenizationState::BeforeDOCTYPEName;
@@ -576,7 +579,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_before_doctype_name(&mut self) -> Result<(), ParserError> {
+    fn tokenize_before_doctype_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
             },
@@ -605,7 +608,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_doctype_name(&mut self) -> Result<(), ParserError> {
+    fn tokenize_doctype_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 self.tokenization_state = TokenizationState::AfterDOCTYPEName;
@@ -642,7 +645,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_comment_start(&mut self) -> Result<(), ParserError> {
+    fn tokenize_comment_start(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('-') => {
                 self.tokenization_state = TokenizationState::CommentStartDash;
@@ -659,7 +662,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_comment(&mut self) -> Result<(), ParserError> {
+    fn tokenize_comment(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('<') => {
                 if let Token::Comment { ref mut data } = self.current_token {
@@ -692,7 +695,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_comment_end_dash(&mut self) -> Result<(), ParserError> {
+    fn tokenize_comment_end_dash(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('-') => {
                 self.tokenization_state = TokenizationState::CommentEnd;
@@ -714,7 +717,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_comment_end(&mut self) -> Result<(), ParserError> {
+    fn tokenize_comment_end(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('>') => {
                 self.emit_current()?;
@@ -748,7 +751,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_rcdata(&mut self) -> Result<(), ParserError> {
+    fn tokenize_rcdata(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('&') => {
                 self.tokenization_state_origin = self.tokenization_state;
@@ -771,7 +774,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_rcdata_less_than_sign(&mut self) -> Result<(), ParserError> {
+    fn tokenize_rcdata_less_than_sign(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('/') => {
                 self.temp_buffer = String::new();
@@ -785,7 +788,7 @@ impl Parser {
         Ok(())
     }
     
-    pub fn tokenize_rcdata_end_tag_open(&mut self) -> Result<(), ParserError> {
+    fn tokenize_rcdata_end_tag_open(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('a'..='z' | 'A'..='Z') => {
                 self.reconsume(TokenizationState::RCDATAEndTagName);
@@ -800,7 +803,7 @@ impl Parser {
         Ok(())
     }
     
-    pub fn tokenize_rcdata_end_tag_name(&mut self) -> Result<(), ParserError> {
+    fn tokenize_rcdata_end_tag_name(&mut self) -> Result<(), ParserError> {
         match self.consume() { 
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 if self.current_tag_is_appropriate()? {
@@ -846,7 +849,7 @@ impl Parser {
         Ok(())
     }
 
-    pub fn tokenize_before_attribute_name(&mut self) -> Result<(), ParserError> {
+    fn tokenize_before_attribute_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
             Char::Eof | Char::Char('>' | '/') => {
@@ -862,9 +865,59 @@ impl Parser {
         Ok(())
     }
 
-    pub fn current_tag_is_appropriate(&self) -> Result<bool, ParserError> {
+    fn tokenize_attribute_name(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}' | '>' | '/') | Char::Eof => {
+                self.reconsume(TokenizationState::AfterAttributeName);
+            },
+            Char::Char('=') => {
+                self.tokenization_state = TokenizationState::BeforeAttributeValue;
+            },
+            Char::Char(c) if ('A'..='Z').contains(&c) => {
+                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                    if let Some((ref mut name, ref value)) = attributes.last_mut() {
+                        name.push(char::from_u32(c as u32 + 0x20).unwrap());
+                    } else {
+                        do yeet ParserError::CurrentTokenWrongType(function!());
+                    }
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+            },
+            Char::Char('\u{0000}') => {
+                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                    if let Some((ref mut name, ref value)) = attributes.last_mut() {
+                        name.push('\u{FFFD}');
+                    } else {
+                        do yeet ParserError::CurrentTokenWrongType(function!());
+                    }
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+            },
+            Char::Char(c) => {
+                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                    if let Some((ref mut name, ref value)) = attributes.last_mut() {
+                        name.push(c);
+                    } else {
+                        do yeet ParserError::CurrentTokenWrongType(function!());
+                    }
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn tokenize_after_attribute_name(&mut self) -> Result<(), ParserError> {
+        Ok(())
+    }
+
+    fn current_tag_is_appropriate(&self) -> Result<bool, ParserError> {
         Ok(if let Token::EndTag { ref name } = self.current_token { name } else { do yeet ParserError::CurrentTokenWrongType(function!()) } == &self.last_start_tag)
     }
+    
 }
 
 #[derive(Debug, Default, Clone)]
@@ -1130,6 +1183,6 @@ pub enum ParsingError {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct OpenElement {
+struct OpenElement {
     coordinate: DOMCoordinate,
 }

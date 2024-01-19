@@ -4,17 +4,17 @@ pub struct Style {
 }
 
 #[derive(Debug)]
-pub struct Rule {
+struct Rule {
     pub selectors: Vec<Selector>,  
     pub declarations: Vec<Declaration>,
 }
 
 #[derive(Debug)]
-pub enum Selector {
+enum Selector {
 
 }
 
 #[derive(Debug)]
-pub enum Declaration {
+enum Declaration {
 
 }
