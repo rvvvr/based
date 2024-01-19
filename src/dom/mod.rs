@@ -5,7 +5,7 @@ pub struct Document {
 }
 
 pub trait DOMElement {
-    fn insert_element(&mut self, tag_name: String) -> DOMCoordinate;
+    fn insert_element(&mut self, tag_name: String, attributes: Vec<(String, String)>) -> DOMCoordinate;
     fn insert_document_type(&mut self, name: String, system_id: String, public_id: String, quirks: bool);
     fn insert_comment(&mut self, data: String);
     fn get_element_for_coordinate(&mut self, coordinate: DOMCoordinate) -> &mut Element;
@@ -29,11 +29,11 @@ impl DOMElement for Document {
         self.children.push(Node::Comment { data });
     }
 
-    fn insert_element(&mut self, tag_name: String) -> DOMCoordinate {
+    fn insert_element(&mut self, tag_name: String, attributes: Vec<(String, String)>) -> DOMCoordinate {
         let coordinate = DOMCoordinate {
             indices: vec![self.children.len()]
         };
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), tag_name, data: String::new() }));
+        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), tag_name, data: String::new(), attributes }));
         return coordinate;
     }
 
@@ -71,15 +71,16 @@ pub struct Element {
     pub data: String,
     pub coordinate: DOMCoordinate,
     pub children: Vec<Node>,
+    pub attributes: Vec<(String, String)>,
 }
 
 impl DOMElement for Element {
-    fn insert_element(&mut self, tag_name: String) -> DOMCoordinate {
+    fn insert_element(&mut self, tag_name: String, attributes: Vec<(String, String)>) -> DOMCoordinate {
         let mut coordinate = DOMCoordinate {
             indices: self.coordinate.indices.clone()
         };
         coordinate.indices.push(self.children.len());
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), tag_name , data: String::new() }));
+        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), tag_name , data: String::new(), attributes }));
         return coordinate;
     }
     fn insert_comment(&mut self, data: String) {

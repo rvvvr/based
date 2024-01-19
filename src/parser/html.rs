@@ -89,6 +89,18 @@ impl Parser {
                 TokenizationState::CommentEnd => {
                     self.tokenize_comment_end()?
                 },
+                TokenizationState::RAWTEXT => {
+                    self.tokenize_rawtext()?
+                },
+                TokenizationState::RAWTEXTLessThanSign => {
+                    self.tokenize_rawtext_less_than_sign()?
+                },
+                TokenizationState::RAWTEXTEndTagOpen => {
+                    self.tokenize_rawtext_end_tag_open()?
+                },
+                TokenizationState::RAWTEXTEndTagName => {
+                    self.tokenize_rawtext_end_tag_name()?
+                },
                 TokenizationState::RCDATA => {
                     self.tokenize_rcdata()?
                 },
@@ -107,6 +119,18 @@ impl Parser {
                 TokenizationState::AttributeName => {
                     self.tokenize_attribute_name()?
                 },
+                TokenizationState::AfterAttributeName => {
+                    self.tokenize_after_attribute_name()?
+                },
+                TokenizationState::BeforeAttributeValue => {
+                    self.tokenize_before_attribute_value()?
+                },
+                TokenizationState::AttributeValueDoubleQuoted => {
+                    self.tokenize_attribute_value_double_quoted()?
+                },
+                TokenizationState::AfterAttributeValueQuoted => {
+                    self.tokenize_after_attribute_value_quoted()?
+                }
                 a => {
                     do yeet ParserError::UnimplementedTokenizationState(*a);
                 },
@@ -218,8 +242,8 @@ impl Parser {
             Token::Comment { data } => {
                 self.document.insert_comment(data);
             },
-            Token::StartTag { name, .. } if name == "html" => {
-                let coordinate = self.document.insert_element(name);
+            Token::StartTag { name, attributes } if name == "html" => {
+                let coordinate = self.document.insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
                 self.insertion_mode = InsertionMode::BeforeHead;
             }
@@ -233,8 +257,8 @@ impl Parser {
     fn handle_token_for_before_head(&mut self, token: Token) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
-            Token::StartTag { name, .. } if name == "head" => {
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name);
+            Token::StartTag { name, attributes } if name == "head" => {
+                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate: coordinate.clone() });
                 self.head_pointer = Some(coordinate);
                 self.insertion_mode = InsertionMode::InHead;
@@ -250,7 +274,10 @@ impl Parser {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
             Token::StartTag { ref name, .. } if name == "title" => {
-                self.generic_rcdata(token, false)?;
+                self.generic_parsing_algorithm(token, false)?;
+            },
+            Token::StartTag { ref name, .. } if name == "style" || name == "noframes" => {
+                self.generic_parsing_algorithm(token, true)?;
             },
             Token::EndTag { ref name } if name == "head" => {
                 let _ = self.open_elements.pop();
@@ -268,8 +295,8 @@ impl Parser {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
                 self.insert_character(char)?;
             },
-            Token::StartTag { name, .. } if name == "body" => {
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name);
+            Token::StartTag { name, attributes } if name == "body" => {
+                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
                 self.frameset_ok = false;
                 self.insertion_mode = InsertionMode::InBody;
@@ -296,14 +323,14 @@ impl Parser {
                 }
                 self.insert_character(char)?;
             },
-            Token::StartTag { name, ..} if name == "p" => {
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name);
+            Token::StartTag { name, attributes } if name == "p" => {
+                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
             },
-            Token::StartTag { name, .. } if name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" => {
+            Token::StartTag { name, attributes } if name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" => {
                 //TODO: check for p in button scope
                 //TODO: also check if current element is h1..=6
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name);
+                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
             },
             Token::EndTag { name } if name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" => {
@@ -386,9 +413,9 @@ impl Parser {
         Ok(())
     }
 
-    fn generic_rcdata(&mut self, token: Token, raw_text: bool) -> Result<(), ParserError> {
-        if let Token::StartTag { name, ..} = token {
-            let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name);
+    fn generic_parsing_algorithm(&mut self, token: Token, raw_text: bool) -> Result<(), ParserError> {
+        if let Token::StartTag { name, attributes } = token {
+            let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
             self.open_elements.push(OpenElement { coordinate: coordinate.clone() });
             self.tokenization_state = if raw_text {
                 TokenizationState::RAWTEXT
@@ -751,6 +778,102 @@ impl Parser {
         Ok(())
     }
 
+    fn tokenize_rawtext(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('<') => {
+                self.tokenization_state = TokenizationState::RAWTEXTLessThanSign;
+            },
+            Char::Char('\u{0000}') => {
+                self.emit(Token::Character { char: '\u{FFFD}' })?;
+                do yeet ParsingError::UnexpectedNullCharacter;
+            },
+            Char::Char(c) => {
+                self.emit(Token::Character { char: c })?;
+            },
+            Char::Eof => {
+                self.emit(Token::EOF)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn tokenize_rawtext_less_than_sign(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('/') => {
+                self.temp_buffer.clear();
+                self.tokenization_state = TokenizationState::RAWTEXTEndTagOpen;
+            },
+            _ => {
+                self.emit(Token::Character { char: '<' })?;
+                self.reconsume(TokenizationState::RAWTEXT);
+            }
+        }
+        Ok(())
+    }
+
+    fn tokenize_rawtext_end_tag_open(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('A'..='Z' | 'a'..='z') => {
+                self.current_token = Token::EndTag { name: String::new() };
+                self.reconsume(TokenizationState::RAWTEXTEndTagName);
+            },
+            _ => {
+                self.emit(Token::Character { char: '<' })?;
+                self.emit(Token::Character { char: '/' })?;
+                self.reconsume(TokenizationState::RAWTEXT);
+            },
+        }
+        Ok(())
+    }
+
+    fn tokenize_rawtext_end_tag_name(&mut self) -> Result<(), ParserError> {
+        match self.consume() { 
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
+                if self.current_tag_is_appropriate()? {
+                    self.tokenization_state = TokenizationState::BeforeAttributeName;
+                    return Ok(());
+                }
+            },
+            Char::Char('/') => {
+                if self.current_tag_is_appropriate()? { 
+                    self.tokenization_state = TokenizationState::SelfClosingStartTag;
+                    return Ok(());
+                }
+            },
+            Char::Char('>') => {
+                if self.current_tag_is_appropriate()? {
+                    self.tokenization_state = TokenizationState::Data;
+                    self.emit_current()?;
+                    return Ok(())
+                }
+            },
+            Char::Char(c) if ('A'..='Z').contains(&c) => {
+                if let Token::EndTag { ref mut name } = self.current_token {
+                    name.push(char::from_u32(c as u32 + 0x20).unwrap());
+                    self.temp_buffer.push(c);
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+                return Ok(());
+            },
+            Char::Char(c) if ('a'..='z').contains(&c) => {
+                if let Token::EndTag { ref mut name } = self.current_token {
+                    name.push(c);
+                    self.temp_buffer.push(c);
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+                return Ok(())
+            },
+            _ => {},
+        };
+        self.emit(Token::Character { char: '<' })?;
+        self.emit(Token::Character { char: '/' })?;
+        self.emit_temp_buffer()?;
+        self.reconsume(TokenizationState::RAWTEXT);
+        Ok(())
+    }
+
     fn tokenize_rcdata(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('&') => {
@@ -777,7 +900,7 @@ impl Parser {
     fn tokenize_rcdata_less_than_sign(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('/') => {
-                self.temp_buffer = String::new();
+                self.temp_buffer.clear();
                 self.tokenization_state = TokenizationState::RCDATAEndTagOpen;
             },
             _ => {
@@ -827,6 +950,7 @@ impl Parser {
             Char::Char(c) if ('A'..='Z').contains(&c) => {
                 if let Token::EndTag { ref mut name } = self.current_token {
                     name.push(char::from_u32(c as u32 + 0x20).unwrap());
+                    self.temp_buffer.push(c);
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
@@ -835,6 +959,7 @@ impl Parser {
             Char::Char(c) if ('a'..='z').contains(&c) => {
                 if let Token::EndTag { ref mut name } = self.current_token {
                     name.push(c);
+                    self.temp_buffer.push(c);
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
@@ -911,6 +1036,114 @@ impl Parser {
     }
 
     fn tokenize_after_attribute_name(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
+            Char::Char('/') => {
+                self.tokenization_state = TokenizationState::SelfClosingStartTag;
+            },
+            Char::Char('=') => {
+                self.tokenization_state = TokenizationState::BeforeAttributeValue;
+            },
+            Char::Char('>') => {
+                self.emit_current()?;
+                self.tokenization_state = TokenizationState::Data;
+            },
+            Char::Char(c) => {
+                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                    attributes.push((String::new(), String::new()));
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+            },
+            Char::Eof => {
+                self.emit(Token::EOF)?;
+                do yeet ParsingError::EofInTag;
+            }
+        }
+        Ok(())
+    }
+
+    fn tokenize_before_attribute_value(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
+            Char::Char('"') => {
+                self.tokenization_state = TokenizationState::AttributeValueDoubleQuoted;
+            },
+            Char::Char('\'') => {
+                self.tokenization_state = TokenizationState::AttributeValueSingleQuoted;
+            },
+            Char::Char('>') => {
+                self.emit_current()?;
+                self.tokenization_state = TokenizationState::Data;
+                do yeet ParsingError::MissingAttributeValue;
+            },
+            _ => {
+                self.reconsume(TokenizationState::AttributeValueUnquoted);
+            }
+        }
+        Ok(())
+    }
+
+    fn tokenize_attribute_value_double_quoted(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('"') => {
+                self.tokenization_state = TokenizationState::AfterAttributeValueQuoted;
+            },
+            Char::Char('&') => {
+                self.tokenization_state_origin = self.tokenization_state;
+                self.tokenization_state = TokenizationState::CharacterReference;
+            },
+            Char::Char('\u{0000}') => {
+                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                    if let Some((ref name, ref mut value)) = attributes.last_mut() {
+                        value.push('\u{FFFD}');
+                    } else {
+                        do yeet ParserError::CurrentTokenWrongType(function!());
+                    }
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+            }
+            Char::Char(c) => {
+                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                    if let Some((ref name, ref mut value)) = attributes.last_mut() {
+                        value.push(c);
+                    } else {
+                        do yeet ParserError::CurrentTokenWrongType(function!());
+                    }
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+            },
+            Char::Eof => {
+                self.emit(Token::EOF);
+                do yeet ParsingError::EofInTag;
+            },
+        }
+        Ok(())
+    }
+
+    fn tokenize_after_attribute_value_quoted(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
+                self.tokenization_state = TokenizationState::BeforeAttributeName;
+            },
+            Char::Char('/') => {
+                self.tokenization_state = TokenizationState::SelfClosingStartTag;
+            },
+            Char::Char('>') => {
+                self.tokenization_state = TokenizationState::Data;
+                self.emit_current()?;
+            },
+            Char::Char(_) => {
+                self.reconsume(TokenizationState::BeforeAttributeName);
+                do yeet ParsingError::MissingWhitespaceBetweenAttributes;
+            },
+            Char::Eof => {
+                self.emit(Token::EOF)?;
+                do yeet ParsingError::EofInTag;
+            }
+        }
         Ok(())
     }
 
@@ -1019,6 +1252,7 @@ pub enum TokenizationState {
     AttributeValueDoubleQuoted,
     AttributeValueSingleQuoted,
     AttributeValueUnquoted,
+    AfterAttributeValueQuoted,
     SelfClosingStartTag,
     BogusComment,
     MarkupDeclarationOpen,
