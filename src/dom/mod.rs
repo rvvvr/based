@@ -1,3 +1,5 @@
+use crate::parser::css::CSSSource;
+
 #[derive(Default, Debug)]
 pub struct Document {
     pub document_mode: DocumentMode,
@@ -14,6 +16,24 @@ pub trait DOMElement {
 impl Document {
     pub fn print_tree(&self) {
         
+    }
+
+    pub fn find_css_sources(&self) -> Vec<CSSSource> {
+        let mut out = Vec::with_capacity(5);
+        Self::find_css_sources_recursive(&self.children, &mut out);
+        return out;
+    }
+
+    fn find_css_sources_recursive(nodes: &Vec<Node>, out: &mut Vec<CSSSource>) {
+        for node in nodes {
+            if let Node::Element(el) = node {
+                if el.tag_name == "style" {
+                    out.push(CSSSource::Raw(el.data.clone()));
+                    continue;
+                }
+                Self::find_css_sources_recursive(&el.children, out);
+            }
+        }
     }
 }
 

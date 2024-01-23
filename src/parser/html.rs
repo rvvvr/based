@@ -4,10 +4,11 @@ use thiserror::Error;
 use derivative::Derivative;
 
 use crate::{dom::{Document, DOMCoordinate, DOMElement, Node}, function};
-
+use super::{Char, css::CSSParser};
+//TODO: Better errors!
 #[derive(Derivative, Debug)]
 #[derivative(Default(new="true"))]
-pub struct Parser {
+pub struct HTMLParser {
     nesting_level: usize,
     pause: bool,
     insertion_mode: InsertionMode,
@@ -30,23 +31,39 @@ pub struct Parser {
     frameset_ok: bool,
     active_formatting_elements: Vec<DOMCoordinate>,
     done_parsing: bool,
+    parsing_errors: Vec<(usize, ParsingError)>,
+    css_parser: CSSParser,
 }
 
-impl Parser {
+impl HTMLParser {
     fn normalize_source(&mut self) -> Result<(), ParserError> {
         self.source = self.source.replace("\u{000D}\u{000A}", "\u{000A}")
                     .replace("\u{000D}", "\u{000A}");
         Ok(())
     }
 
-    pub fn parse(&mut self) -> Result<(), ParserError>{
+    pub fn parse(&mut self) -> Result<&Vec<(usize, ParsingError)>, ParserError>{
         self.normalize_source()?;
         loop {
             if self.done_parsing {
-                break Ok(());
+                self.css_parser.push_many(self.document.find_css_sources());
+                self.css_parser.parse().unwrap();
+                break Ok(&self.parsing_errors);
             }
-            let token = self.tokenize()?;
-            self.handle_tokens()?;
+            if let Err(e) = self.tokenize() {
+                if let ParserError::ParsingError(err) = e {
+                    self.parsing_errors.push((self.source_idx, err))
+                } else {
+                    do yeet e;
+                }
+            }
+            if let Err(e) = self.handle_tokens() {
+                if let ParserError::ParsingError(err) = e {
+                    self.parsing_errors.push((self.source_idx, err))
+                } else {
+                    do yeet e;
+                }
+            }
         }
     }
 
@@ -76,6 +93,12 @@ impl Parser {
                 },
                 TokenizationState::DOCTYPEName => {
                     self.tokenize_doctype_name()?
+                },
+                TokenizationState::AfterDOCTYPEName => {
+                    self.tokenize_after_doctype_name()?
+                },
+                TokenizationState::BogusDOCTYPE => {
+                    self.tokenize_bogus_doctype()?
                 },
                 TokenizationState::CommentStart => {
                     self.tokenize_comment_start()?
@@ -371,7 +394,7 @@ impl Parser {
             Token::EndTag { name } if name == "script" => {
                 todo!();
             },
-            Token::EndTag { .. } => {
+            Token::EndTag { name } => {
                 self.open_elements.pop();
                 self.insertion_mode = self.insertion_mode_origin;
             }
@@ -670,6 +693,56 @@ impl Parser {
             },
         };
         Ok(())
+    }
+
+    fn tokenize_after_doctype_name(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
+            Char::Char('>') => {
+                self.tokenization_state = TokenizationState::Data;
+                self.emit_current()?;
+            },
+            Char::Char(_) => {
+                //TODO: Public and system identifiers
+                if let Token::Doctype { ref mut force_quirks, .. } = &mut self.current_token {
+                    *force_quirks = true;
+                    self.reconsume(TokenizationState::BogusDOCTYPE);
+                    do yeet ParsingError::InvalidCharacterSequenceAfterDoctypeName;
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+            },
+            Char::Eof => {
+                if let Token::Doctype { ref mut force_quirks, .. } = &mut self.current_token {
+                    *force_quirks = true;
+                    self.emit_current()?;
+                    self.emit(Token::EOF)?;
+                    do yeet ParsingError::EofInDoctype;
+                } else {
+                    do yeet ParserError::CurrentTokenWrongType(function!());
+                }
+                
+            }
+        }
+        Ok(())
+    }
+
+    fn tokenize_bogus_doctype(&mut self) -> Result<(), ParserError> {
+        match self.consume() {
+            Char::Char('>') => {
+                self.tokenization_state = TokenizationState::Data;
+                self.emit_current()?;
+            },
+            Char::Char('\u{0000}') => {
+                do yeet ParsingError::UnexpectedNullCharacter;
+            },
+            Char::Eof => {
+                self.emit_current()?;
+                self.emit(Token::EOF)?;
+            },
+            Char::Char(_) => {},
+        }
+        Ok(()) 
     }
 
     fn tokenize_comment_start(&mut self) -> Result<(), ParserError> {
@@ -1178,11 +1251,6 @@ pub enum Token {
     },
 }
 
-#[derive(Debug)]
-pub enum Char {
-    Eof,
-    Char(char),
-}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum InsertionMode {

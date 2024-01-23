@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 
-use based::parser::html::Parser;
+use based::parser::html::HTMLParser;
 
 fn main() {
-    let mut parser = Parser::new();
-    parser.load_from_file(PathBuf::from("tests/basic.html"));
-    let err = parser.parse();
+    let mut parser = HTMLParser::new();
+    parser.load_from_file(PathBuf::from("tests/basic.html")).unwrap();
+    parser.parse().unwrap();
     println!("{:#?}", parser);
-    err.unwrap();
 }
