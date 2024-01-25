@@ -102,6 +102,7 @@ impl CSSParser {
         if let Some(Component::Token(CSSToken::Ident(t))) = iter.next() {
             builder.set_kind(t.clone());
         }
+
         Ok(builder.build()?)
     }
 
@@ -590,12 +591,18 @@ impl DeclarationBuilder {
 
     pub fn build(self) -> Result<Declaration, CSSError> {
         //TODO: So much
-        Ok(Declaration::Unknown(self.kind, self.value))
+        Ok(Declaration { important: false, kind: DeclarationKind::Unknown(self.kind, self.value) })
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum Declaration {
+pub struct Declaration {
+    important: bool,
+    kind: DeclarationKind
+}
+
+#[derive(Debug, Clone)]
+pub enum DeclarationKind {
     Unknown(String, Vec<Component>),
 }
 
