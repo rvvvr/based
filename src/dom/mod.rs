@@ -1,7 +1,8 @@
-use crate::parser::css::CSSSource;
+use crate::parser::css::{CSSSource, Style};
 
 #[derive(Default, Debug)]
 pub struct Document {
+    pub style: Style,
     pub document_mode: DocumentMode,
     pub children: Vec<Node>,
 }
@@ -34,6 +35,10 @@ impl Document {
                 Self::find_css_sources_recursive(&el.children, out);
             }
         }
+    }
+
+    pub fn add_style(&mut self, style: Style)  {
+        self.style = style;
     }
 }
 

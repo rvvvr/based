@@ -1,4 +1,4 @@
-use std::{fs::File, path::{PathBuf}, io::Read};
+use std::{fs::File, path::{PathBuf}, io::Read, num::ParseIntError};
 
 use reqwest::Url;
 
@@ -28,10 +28,14 @@ impl CSSParser {
         self.sources.push(CSSSource::Local(file.clone()));
     }
 
+    pub fn push_pretokenized(&mut self, tokens: Vec<CSSToken>) {
+        self.tokens.extend(tokens);
+    }
+
     pub fn push_many(&mut self, sources: Vec<CSSSource>) {
         self.sources.extend(sources);
     }
-    
+
     fn reconsume(&mut self) {
         self.tokens_idx = self.tokens_idx.saturating_sub(1);
     }
@@ -39,6 +43,11 @@ impl CSSParser {
     fn consume(&mut self) -> CSSToken {
         let out = self.tokens.get(self.tokens_idx).unwrap_or(&CSSToken::EOF);
         self.tokens_idx += 1;
+        out.clone()
+    }
+
+    fn peek(&self) -> CSSToken {
+        let out = self.tokens.get(self.tokens_idx).unwrap_or(&CSSToken::EOF);
         out.clone()
     }
 
@@ -55,6 +64,45 @@ impl CSSParser {
         }
         let style = self.consume_list_of_rules()?;
         Ok(style)
+    }
+
+    pub fn parse_declaration_list(&mut self) -> Result<Vec<Declaration>, CSSError> {
+        let mut declarations = vec![];
+        loop {
+            match self.consume() {
+                CSSToken::Whitespace | CSSToken::Semicolon => {},
+                a if let CSSToken::Ident(_) = a => {
+                    let mut components = vec![Component::Token(a)];
+                    loop {
+                        match self.peek() {
+                            CSSToken::Semicolon | CSSToken::EOF => {
+                                break;
+                            },
+                            _ => {
+                                components.push(self.consume_component_value()?);
+                            }
+                        }
+                    }
+                    declarations.push(self.consume_declaration(components)?);
+                }
+                CSSToken::EOF => {
+                    break;
+                }
+                a => {
+                    unimplemented!("{:?}", a);
+                }
+            }
+        }
+        Ok(declarations)
+    }
+
+    fn consume_declaration(&self, components: Vec<Component>) -> Result<Declaration, CSSError> {
+        let mut builder = DeclarationBuilder::default();
+        let mut iter = components.iter();
+        if let Some(Component::Token(CSSToken::Ident(t))) = iter.next() {
+            builder.set_kind(t.clone());
+        }
+        Ok(builder.build()?)
     }
 
     fn consume_list_of_rules(&mut self) -> Result<Style, CSSError> {
@@ -91,7 +139,7 @@ impl CSSParser {
                 }
             }
         }
-        Ok(rule_builder.build())
+        Ok(rule_builder.build()?)
     }
 
     fn consume_component_value(&mut self) -> Result<Component, CSSError> {
@@ -158,6 +206,21 @@ impl CSSTokenizer {
                 Char::Char(':') => {
                     tokens.push(CSSToken::Colon);
                 },
+                Char::Char(';') => {
+                    tokens.push(CSSToken::Semicolon);
+                },
+                Char::Char('0'..='9') => {
+                    self.reconsume();
+                    tokens.push(self.consume_numeric()?);
+                },
+                Char::Char('+') => {
+                    if let Char::Char('0'..='9') = self.peek() {
+                        self.reconsume();
+                        tokens.push(self.consume_numeric()?);
+                    } else {
+                        tokens.push(CSSToken::Delim(Char::Char('+')));
+                    }
+                },
                 Char::Eof => {
                     tokens.push(CSSToken::EOF);
                     return Ok(());
@@ -180,16 +243,16 @@ impl CSSTokenizer {
         self.source.replace_range(.., &string);
         Ok(())
     }
-    
+
     pub fn load_from_url(&mut self, _url: &Url) -> Result<(), CSSError> {
         todo!();
     }
 
     fn preprocess(&mut self) -> Result<(), CSSError> {
         self.source = self.source.replace("\u{000D}", "\u{000A}")
-                    .replace("\u{000C}", "\u{000A}")
-                    .replace("\u{000D}\u{000A}", "\u{000A}")
-                    .replace("\u{0000}", "\u{FFFD}");
+            .replace("\u{000C}", "\u{000A}")
+            .replace("\u{000D}\u{000A}", "\u{000A}")
+            .replace("\u{0000}", "\u{FFFD}");
         //TODO: Filter out surrogates
         Ok(())
     }
@@ -207,13 +270,21 @@ impl CSSTokenizer {
         }
     }
 
+    fn peek(&self) -> Char {
+        if let Some(char) = self.source.chars().nth(self.source_idx) {
+            Char::Char(char)
+        } else {
+            Char::Eof
+        }
+    }
+
     fn consume_escaped(&mut self) -> Result<Option<char>, CSSError> {
         todo!();
         /*match self.consume() {
-            Char::Char('\n') => {
-                Ok(None)
-            }
-        }*/
+          Char::Char('\n') => {
+          Ok(None)
+          }
+          }*/
     }
 
     fn consume_ident_sequence(&mut self) -> Result<String, CSSError> {
@@ -258,6 +329,59 @@ impl CSSTokenizer {
         let string = self.consume_ident_sequence()?;
         Ok(CSSToken::Ident(string))
     }
+
+    fn consume_numeric(&mut self) -> Result<CSSToken, CSSError> {
+        let number = self.consume_number()?;
+        if let Char::Char(c) = self.peek() {
+            if ('A'..='Z').contains(&c) || ('a'..='z').contains(&c) || c as u32 > '\u{0080}' as u32 || c == '_' || c == '\\' {
+                let unit = self.consume_ident_sequence()?;
+                return Ok(CSSToken::Unit(number, unit));
+            } else if c == '%' {
+                self.consume();
+                return Ok(CSSToken::Percentage(number));
+            }
+        };
+        Ok(CSSToken::Number(number))
+    }
+
+    fn consume_number(&mut self) -> Result<Numeric, CSSError> {
+        let mut rep = NumberRep::default();
+        if let Char::Char('+' | '-') = self.peek() {
+            rep.set_sign(match self.consume() {
+                Char::Char(c) => {c},
+                Char::Eof => {do yeet CSSError::EOFReached},
+            });
+        };
+        println!("repr: {:?}", rep);
+        while let Char::Char('0'..='9') = self.peek() {
+            rep.append_to_integer(match self.consume() {
+                Char::Char(c) => {c},
+                Char::Eof => {do yeet CSSError::EOFReached},
+            });
+        println!("repr: {:?}", rep);
+        };
+        if let Char::Char('.') = self.peek() {
+            self.consume();
+            while let Char::Char('0'..='9') = self.peek() {
+                rep.append_to_decimal(match self.consume() {
+                    Char::Char(c) => {c},
+                    Char::Eof => {do yeet CSSError::EOFReached},
+                });
+        println!("repr: {:?}", rep);
+            }
+        }
+        if let Char::Char('E' | 'e') = self.peek() {
+            self.consume();
+            while let Char::Char('+' | '-' | '0'..='9') = self.peek() {
+                rep.append_to_exponent(match self.consume() {
+                    Char::Char(c) => {c},
+                    Char::Eof => {do yeet CSSError::EOFReached},
+                });
+        println!("repr: {:?}", rep);
+            }
+        }
+        Ok(rep.into_numeric()?)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -272,7 +396,8 @@ pub enum CSSError {
     UnimplementedToken(CSSToken),
     #[error("Block ending token was wrong: {0:?}")]
     WrongBlockEndingToken(CSSToken),
-    
+    #[error("Couldn't parse int! {0:?}")]
+    ParseIntError(#[from] ParseIntError)
 }
 
 #[derive(Debug, Default)]
@@ -281,7 +406,7 @@ pub struct Style {
 }
 
 impl Style {
-    
+
 }
 
 #[derive(Debug)]
@@ -308,7 +433,7 @@ impl RuleBuilder {
         self.blocks.push(block);
     }
 
-    pub fn build(self) -> Rule {
+    pub fn build(self) -> Result<Rule, CSSError> {
         if self.at {
             todo!("at rule");
         }
@@ -317,7 +442,11 @@ impl RuleBuilder {
             selector.append(component);
         }
         println!("{:?}", selector);
-        Rule { prelude: Prelude::Selector(selector), value: Block::Empty }
+        let mut declarations: Vec<Declaration> = vec![];
+        for ref mut block in self.blocks {
+            declarations.extend(block.parse_as_declarations()?)
+        }
+        Ok(Rule { prelude: Prelude::Selector(selector), value: Block::Declarations(declarations) })
     }
 }
 
@@ -353,6 +482,20 @@ impl SimpleBlock {
     pub fn push_value(&mut self, component: Component) {
         self.value.push(component);
     }
+
+    pub fn parse_as_declarations(&mut self) -> Result<Vec<Declaration>, CSSError> {
+        let tokens = self.value.iter().map(|c| match c {
+            Component::Token(t) => {
+                t.clone()
+            },
+            _ => {
+                CSSToken::Whitespace
+            },
+        }).collect::<Vec<_>>();
+        let mut parser = CSSParser::default();
+        parser.push_pretokenized(tokens);
+        Ok(parser.parse_declaration_list()?)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -360,8 +503,8 @@ pub enum Selector {
     Placeheld,
     Universal,
     Type(String),
-    Child(Box<Selector>, Box<Selector>)
-
+    Child(Box<Selector>, Box<Selector>),
+    NextSibling(Box<Selector>, Box<Selector>),
 }
 
 impl Selector {
@@ -376,6 +519,11 @@ impl Selector {
                                 new_self = self.clone();
                             }
                             CSSToken::Ident(s) => {
+                                //TODO:
+                                //Id selectors
+                                //attribute selectors
+                                //pseudo-classes
+                                //class selectors
                                 if s == "*" {
                                     new_self = Selector::Universal
                                 } else {
@@ -398,6 +546,9 @@ impl Selector {
                             CSSToken::Delim(Char::Char('>')) => {
                                 new_self = Selector::Child(Box::new(self.clone()), Box::new(Selector::Placeheld));
                             },
+                            CSSToken::Delim(Char::Char('+')) => {
+                                new_self = Selector::NextSibling(Box::new(self.clone()), Box::new(Selector::Placeheld));
+                            },
                             _ => panic!("{:?}", t),
                         }
                     }
@@ -410,15 +561,42 @@ impl Selector {
                 new_r.append(component);
                 new_self = Selector::Child(new_l, new_r);
             }
+            ref s if let Selector::NextSibling(l, r) = s => {
+                let new_l = l.clone();
+                let mut new_r = r.clone();
+                new_r.append(component);
+                new_self = Selector::NextSibling(new_l, new_r);
+            }
             _ => panic!(),
         }
         *self = new_self;
     }
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct DeclarationBuilder {
+    kind: String,
+    value: Vec<Component>,
+}
+
+impl DeclarationBuilder {
+    pub fn from_kind(kind: String) -> Self {
+        Self { kind, value: vec![] }
+    }
+
+    pub fn set_kind(&mut self, kind: String) {
+        self.kind = kind;
+    }
+
+    pub fn build(self) -> Result<Declaration, CSSError> {
+        //TODO: So much
+        Ok(Declaration::Unknown(self.kind, self.value))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Declaration {
-
+    Unknown(String, Vec<Component>),
 }
 
 #[derive(Debug, Clone)]
@@ -428,14 +606,18 @@ pub enum Component {
     Token(CSSToken),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum CSSToken {
     Whitespace,
     Delim(Char),
     Ident(String),
     Colon,
+    Semicolon,
     CurlyOpen,
     CurlyClose,
+    Number(Numeric),
+    Percentage(Numeric),
+    Unit(Numeric, String),
     EOF,
 }
 
@@ -444,4 +626,65 @@ pub enum CSSSource {
     Raw(String),
     URL(Url),
     Local(PathBuf),
+    Pretokenized(Vec<CSSToken>),
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum Numeric {
+    Integer(i32),
+    Number(f32),
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct NumberRep {
+    sign: Sign,
+    integer_part: String,
+    decimal_part: String,
+    exponent_part: String,
+}
+
+impl NumberRep {
+    pub fn set_sign(&mut self, char: char) {
+        self.sign = Sign::from_char(char);
+    }
+
+    pub fn append_to_integer(&mut self, char: char) {
+        self.integer_part.push(char);
+    }
+
+    pub fn append_to_decimal(&mut self, char: char) {
+        self.decimal_part.push(char);
+    }
+
+    pub fn append_to_exponent(&mut self, char: char) {
+        self.exponent_part.push(char);
+    }
+
+    pub fn into_numeric(&self) -> Result<Numeric, CSSError> {
+        let sign = match self.sign {
+            Sign::Plus => {1},
+            Sign::Minus => {-1},
+        };
+        if self.decimal_part.is_empty() && self.exponent_part.is_empty() {
+            Ok(Numeric::Integer(sign * str::parse::<i32>(&self.integer_part)?))
+        } else {
+            todo!();
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub enum Sign {
+    #[default]
+    Plus,
+    Minus,
+}
+
+impl Sign {
+    pub fn from_char(c: char) -> Self {
+        if c == '-' {
+            return Self::Minus
+        }
+        return Self::Plus
+    }
 }
