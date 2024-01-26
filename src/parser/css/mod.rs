@@ -4,7 +4,11 @@ use reqwest::Url;
 
 use thiserror::Error;
 
+use self::properties::{Colour, Property, Display, FontSize, TextAlign};
+
 use super::Char;
+
+pub mod properties;
 
 #[derive(Debug, Default)]
 pub struct CSSParser {
@@ -51,19 +55,22 @@ impl CSSParser {
         out.clone()
     }
 
-    pub fn parse_stylesheets(&mut self) -> Result<Style, CSSError> {
-        for source in &self.sources {
+    pub fn parse_stylesheets(&mut self) -> Result<Vec<Style>, CSSError> {
+        let mut styles = vec![];
+        for source in self.sources.to_vec() {
+            self.tokens.clear();
+            self.tokens_idx = 0;
             if let CSSSource::Local(file) = source {
-                self.tokenizer.load_from_file(file)?;
+                self.tokenizer.load_from_file(&file)?;
             } else if let CSSSource::Raw(css) = source {
-                self.tokenizer.load_raw(css)?;
+                self.tokenizer.load_raw(&css)?;
             } else if let CSSSource::URL(url) = source {
-                self.tokenizer.load_from_url(url)?;
+                self.tokenizer.load_from_url(&url)?;
             }
             self.tokenizer.tokenize(&mut self.tokens)?;
+            styles.push(self.consume_list_of_rules()?);
         }
-        let style = self.consume_list_of_rules()?;
-        Ok(style)
+        Ok(styles)
     }
 
     pub fn parse_declaration_list(&mut self) -> Result<Vec<Declaration>, CSSError> {
@@ -98,10 +105,23 @@ impl CSSParser {
 
     fn consume_declaration(&self, components: Vec<Component>) -> Result<Declaration, CSSError> {
         let mut builder = DeclarationBuilder::default();
-        let mut iter = components.iter();
+        let mut iter = components.iter().peekable();
         if let Some(Component::Token(CSSToken::Ident(t))) = iter.next() {
             builder.set_kind(t.clone());
         }
+        while let Some(Component::Token(CSSToken::Whitespace)) = iter.peek() {
+            iter.next();
+        }
+        if let Some(Component::Token(CSSToken::Colon)) = iter.next() {} else {
+            do yeet CSSError::EOFReached;
+        }
+        while let Some(Component::Token(CSSToken::Whitespace)) = iter.peek() {
+            iter.next();
+        }
+        if let Some(Component::Token(CSSToken::EOF)) = iter.peek() {} else {
+            builder.push_value(iter.next().unwrap().clone());
+        }
+        //TODO: Handle !important
 
         Ok(builder.build()?)
     }
@@ -120,7 +140,7 @@ impl CSSParser {
                 }
             }
         }
-        Ok(Style { rules })
+        Ok(Style { rules, level: StyleLevel::UserAgent})
     }
 
     fn consume_qualified_rule(&mut self) -> Result<Rule, CSSError> {
@@ -236,12 +256,14 @@ impl CSSTokenizer {
 
     pub fn load_from_file(&mut self, path: &PathBuf) -> Result<(), CSSError> {
         self.source.clear();
+        self.source_idx = 0;
         File::open(path).unwrap().read_to_string(&mut self.source)?;
         Ok(())
     }
 
     pub fn load_raw(&mut self, string: &String) -> Result<(), CSSError> {
         self.source.replace_range(.., &string);
+        self.source_idx = 0;
         Ok(())
     }
 
@@ -336,13 +358,13 @@ impl CSSTokenizer {
         if let Char::Char(c) = self.peek() {
             if ('A'..='Z').contains(&c) || ('a'..='z').contains(&c) || c as u32 > '\u{0080}' as u32 || c == '_' || c == '\\' {
                 let unit = self.consume_ident_sequence()?;
-                return Ok(CSSToken::Unit(number, unit));
+                return Ok(CSSToken::Number(CSSNumber::Unit(number, Unit::from_string(unit).unwrap_or(Unit::Px))));
             } else if c == '%' {
                 self.consume();
-                return Ok(CSSToken::Percentage(number));
+                return Ok(CSSToken::Number(CSSNumber::Percentage(number)));
             }
         };
-        Ok(CSSToken::Number(number))
+        Ok(CSSToken::Number(CSSNumber::Number(number)))
     }
 
     fn consume_number(&mut self) -> Result<Numeric, CSSError> {
@@ -398,16 +420,32 @@ pub enum CSSError {
     #[error("Block ending token was wrong: {0:?}")]
     WrongBlockEndingToken(CSSToken),
     #[error("Couldn't parse int! {0:?}")]
-    ParseIntError(#[from] ParseIntError)
+    ParseIntError(#[from] ParseIntError),
+    #[error("Unexpected token {0:?}! Expected: {1:?}")]
+    UnexpectedToken(CSSToken, CSSToken),
 }
 
 #[derive(Debug, Default)]
 pub struct Style {
     pub rules: Vec<Rule>,
+    pub level: StyleLevel,
+}
+
+#[derive(Debug, Default)]
+pub enum StyleLevel {
+    #[default]
+    Author,
+    User,
+    UserAgent
 }
 
 impl Style {
 
+}
+
+#[derive(Debug, Default)]
+pub struct StyleData {
+    pub styles: Vec<Style>,
 }
 
 #[derive(Debug)]
@@ -589,9 +627,20 @@ impl DeclarationBuilder {
         self.kind = kind;
     }
 
+    pub fn push_value(&mut self, shmeep: Component) {
+        self.value.push(shmeep);
+    }
+
     pub fn build(self) -> Result<Declaration, CSSError> {
         //TODO: So much
-        Ok(Declaration { important: false, kind: DeclarationKind::Unknown(self.kind, self.value) })
+        let kind = match self.kind.as_str() {
+            "color" => DeclarationKind::Color(Colour::from_components(self.value)),
+            "display" => DeclarationKind::Display(Display::from_components(self.value)),
+            "font-size" => DeclarationKind::FontSize(FontSize::from_components(self.value)),
+            "text-align" => DeclarationKind::TextAlign(TextAlign::from_components(self.value)),
+            _ => DeclarationKind::Unknown(self.kind, self.value),
+        };
+        Ok(Declaration { important: false, kind })
     }
 }
 
@@ -604,6 +653,11 @@ pub struct Declaration {
 #[derive(Debug, Clone)]
 pub enum DeclarationKind {
     Unknown(String, Vec<Component>),
+    Color(CSSValue<Colour>), // as much as i'd like to use the right spelling of colour here, it
+                             // should be this way to be idiomatic.
+    Display(CSSValue<Display>),
+    FontSize(CSSValue<FontSize>),
+    TextAlign(CSSValue<TextAlign>),
 }
 
 #[derive(Debug, Clone)]
@@ -622,13 +676,64 @@ pub enum CSSToken {
     Semicolon,
     CurlyOpen,
     CurlyClose,
-    Number(Numeric),
-    Percentage(Numeric),
-    Unit(Numeric, String),
+    Number(CSSNumber),
     EOF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum CSSNumber {
+    Number(Numeric),
+    Percentage(Numeric),
+    Unit(Numeric, Unit),
+}
+
+impl Default for CSSNumber {
+    fn default() -> Self {
+        Self::Number(Numeric::Integer(0))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum Unit {
+    Px,
+    Cm,
+    Mm,
+    In,
+    Pt,
+    Pc,
+    Em,
+    Ex,
+    Ch,
+    Rem,
+    Vw,
+    Vh,
+    Vmin,
+    Vmax,
+}
+
+impl Unit {
+    pub fn from_string(string: String) -> Option<Self> {
+        Some(match string.to_ascii_lowercase().as_str() {
+            "px" => Unit::Px,
+            "cm" => Unit::Cm,
+            "mm" => Unit::Mm,
+            "in" => Unit::In,
+            "pt" => Unit::Pt,
+            "pc" => Unit::Pc,
+            "em" => Unit::Em,
+            "ex" => Unit::Ex,
+            "ch" => Unit::Ch,
+            "rem" => Unit::Rem,
+            "vw" => Unit::Vw,
+            "vh" => Unit::Vh,
+            "vmin" => Unit::Vmin,
+            "vmax" => Unit::Vmax,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum CSSSource {
     Raw(String),
     URL(Url),
@@ -694,4 +799,12 @@ impl Sign {
         }
         return Self::Plus
     }
+}
+
+#[derive(Debug, Default, Clone)]
+pub enum CSSValue<T: Property> {
+    #[default]
+    Inherit,
+    Initial,
+    Value(T),
 }

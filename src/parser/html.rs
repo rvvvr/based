@@ -47,7 +47,7 @@ impl HTMLParser {
         loop {
             if self.done_parsing {
                 self.css_parser.push_many(self.document.find_css_sources());
-                self.document.add_style(self.css_parser.parse_stylesheets().unwrap());
+                self.document.add_styles(self.css_parser.parse_stylesheets().unwrap());
                 break Ok(&self.parsing_errors);
             }
             if let Err(e) = self.tokenize() {

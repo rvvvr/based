@@ -48,6 +48,7 @@ checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 name = "based"
 version = "0.1.0"
 dependencies = [
+ "colours",
  "derivative",
  "reqwest",
  "thiserror",
@@ -86,6 +87,12 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "colours"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "196eea586937304bf85c1b6f5b5768b12ab479ad552dc873358eb33ba84a384b"
 
 [[package]]
 name = "core-foundation"

@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+colours = "0.1.1" # the right way to spell the word btw...
 derivative = "2.2.0"
 reqwest = { version = "0.11.23", features = ["json", "rustls-tls"], default-features = false} #rustls makes nixos builds way easier :3
 thiserror = "1.0.56"

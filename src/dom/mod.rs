@@ -1,8 +1,8 @@
-use crate::parser::css::{CSSSource, Style};
+use crate::parser::css::{CSSSource, Style, StyleData};
 
 #[derive(Default, Debug)]
 pub struct Document {
-    pub style: Style,
+    pub style: StyleData,
     pub document_mode: DocumentMode,
     pub children: Vec<Node>,
 }
@@ -37,8 +37,12 @@ impl Document {
         }
     }
 
-    pub fn add_style(&mut self, style: Style)  {
-        self.style = style;
+    pub fn add_styles(&mut self, styles: Vec<Style>)  {
+        self.style.styles.extend(styles);
+    }
+
+    pub fn add_style(&mut self, style: Style) {
+        self.style.styles.push(style);
     }
 }
 
@@ -61,7 +65,8 @@ impl DOMElement for Document {
         self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), tag_name, data: String::new(), attributes }));
         return coordinate;
     }
-
+    
+    #[allow(unreachable_code)]
     fn get_element_for_coordinate(&mut self, coordinate: DOMCoordinate) -> &mut Element {
         return if let Some(Node::Element(ref mut element)) = self.children.get_mut(*coordinate.indices.get(0).unwrap()) {
             if coordinate.indices.len() == 1 {
@@ -114,6 +119,8 @@ impl DOMElement for Element {
     fn insert_document_type(&mut self, name: String, system_id: String, public_id: String, quirks: bool) {
         todo!();
     }
+
+    #[allow(unreachable_code)] // why is this unreachable???
     fn get_element_for_coordinate(&mut self, coordinate: DOMCoordinate) -> &mut Element {
         return if let Some(Node::Element(ref mut element)) = self.children.get_mut(*coordinate.indices.get(0).unwrap()) {
             if coordinate.indices.len() == 1 {
