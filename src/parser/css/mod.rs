@@ -9,6 +9,7 @@ use self::properties::{Colour, Property, Display, FontSize, TextAlign};
 use super::Char;
 
 pub mod properties;
+pub mod cascader;
 
 #[derive(Debug, Default)]
 pub struct CSSParser {
@@ -207,6 +208,7 @@ impl CSSTokenizer {
     pub fn tokenize(&mut self, tokens: &mut Vec<CSSToken>) -> Result<(), CSSError> {
         self.preprocess()?;
         loop {
+            self.consume_comments();
             match self.consume() {
                 Char::Char('\u{0009}' | '\u{000A}' | '\u{0020}') => {
                     tokens.push(self.consume_whitespace_token()?);
@@ -241,6 +243,9 @@ impl CSSTokenizer {
                     } else {
                         tokens.push(CSSToken::Delim(Char::Char('+')));
                     }
+                },
+                Char::Char(',') => {
+                    tokens.push(CSSToken::Comma);
                 },
                 Char::Eof => {
                     tokens.push(CSSToken::EOF);
@@ -299,6 +304,25 @@ impl CSSTokenizer {
         } else {
             Char::Eof
         }
+    }
+
+    fn peek_n(&self, n: usize) -> Char {
+        if let Some(char) = self.source.chars().nth(self.source_idx + n - 1) {
+            Char::Char(char)
+        } else {
+            Char::Eof
+        }
+    }
+
+    fn consume_comments(&mut self) -> Result<(), CSSError> {
+        if matches!(self.peek(), Char::Char('/')) && matches!(self.peek_n(2), Char::Char('*')) {
+            while !(matches!(self.peek(), Char::Char('*')) && matches!(self.peek_n(2), Char::Char('/'))) {
+                self.consume();
+            }
+            self.consume();
+            self.consume();
+        }
+        Ok(())
     }
 
     fn consume_escaped(&mut self) -> Result<Option<char>, CSSError> {
@@ -381,7 +405,7 @@ impl CSSTokenizer {
                 Char::Char(c) => {c},
                 Char::Eof => {do yeet CSSError::EOFReached},
             });
-        println!("repr: {:?}", rep);
+            println!("repr: {:?}", rep);
         };
         if let Char::Char('.') = self.peek() {
             self.consume();
@@ -390,7 +414,7 @@ impl CSSTokenizer {
                     Char::Char(c) => {c},
                     Char::Eof => {do yeet CSSError::EOFReached},
                 });
-        println!("repr: {:?}", rep);
+                println!("repr: {:?}", rep);
             }
         }
         if let Char::Char('E' | 'e') = self.peek() {
@@ -400,7 +424,7 @@ impl CSSTokenizer {
                     Char::Char(c) => {c},
                     Char::Eof => {do yeet CSSError::EOFReached},
                 });
-        println!("repr: {:?}", rep);
+                println!("repr: {:?}", rep);
             }
         }
         Ok(rep.into_numeric()?)
@@ -544,6 +568,7 @@ pub enum Selector {
     Type(String),
     Child(Box<Selector>, Box<Selector>),
     NextSibling(Box<Selector>, Box<Selector>),
+    Both(Box<Selector>, Box<Selector>),
 }
 
 impl Selector {
@@ -588,6 +613,9 @@ impl Selector {
                             CSSToken::Delim(Char::Char('+')) => {
                                 new_self = Selector::NextSibling(Box::new(self.clone()), Box::new(Selector::Placeheld));
                             },
+                            CSSToken::Comma => {
+                                new_self = Selector::Both(Box::new(self.clone()), Box::new(Selector::Placeheld));
+                            }
                             _ => panic!("{:?}", t),
                         }
                     }
@@ -605,11 +633,18 @@ impl Selector {
                 let mut new_r = r.clone();
                 new_r.append(component);
                 new_self = Selector::NextSibling(new_l, new_r);
+            },
+            ref s if let Selector::Both(l, r) = s => {
+                let new_l = l.clone();
+                let mut new_r = r.clone();
+                new_r.append(component);
+                new_self = Selector::Both(new_l, new_r);
             }
             _ => panic!(),
         }
         *self = new_self;
     }
+
 }
 
 #[derive(Default, Debug, Clone)]
@@ -660,6 +695,14 @@ pub enum DeclarationKind {
     TextAlign(CSSValue<TextAlign>),
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct CSSProps {
+    color: CSSValue<Colour>,
+    display: CSSValue<Display>,
+    font_size: CSSValue<FontSize>,
+    text_align: CSSValue<TextAlign>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Component {
     Block(Block),
@@ -676,6 +719,7 @@ pub enum CSSToken {
     Semicolon,
     CurlyOpen,
     CurlyClose,
+    Comma,
     Number(CSSNumber),
     EOF,
 }

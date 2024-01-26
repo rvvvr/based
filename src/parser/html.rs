@@ -23,7 +23,6 @@ pub struct HTMLParser {
     current_token: Token,
     emit_buffer: VecDeque<Token>,
     tokens_available: bool,
-    document: Document,
     head_pointer: Option<DOMCoordinate>,
     temp_buffer: String,
     last_start_tag: String,
@@ -42,12 +41,10 @@ impl HTMLParser {
         Ok(())
     }
 
-    pub fn parse(&mut self) -> Result<&Vec<(usize, ParsingError)>, ParserError>{
+    pub fn parse(&mut self, document: &mut Document) -> Result<&Vec<(usize, ParsingError)>, ParserError>{
         self.normalize_source()?;
         loop {
             if self.done_parsing {
-                self.css_parser.push_many(self.document.find_css_sources());
-                self.document.add_styles(self.css_parser.parse_stylesheets().unwrap());
                 break Ok(&self.parsing_errors);
             }
             if let Err(e) = self.tokenize() {
@@ -57,7 +54,7 @@ impl HTMLParser {
                     do yeet e;
                 }
             }
-            if let Err(e) = self.handle_tokens() {
+            if let Err(e) = self.handle_tokens(document) {
                 if let ParserError::ParsingError(err) = e {
                     self.parsing_errors.push((self.source_idx, err))
                 } else {
@@ -203,37 +200,37 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_tokens(&mut self) -> Result<(), ParserError> {
+    fn handle_tokens(&mut self, document: &mut Document) -> Result<(), ParserError> {
         self.tokens_available = false;
         println!("{:#?}", self);
         while let Some(token) = self.emit_buffer.pop_front() {
             match &self.insertion_mode {
                 InsertionMode::Initial => {
-                    self.handle_token_for_initial(token)?
+                    self.handle_token_for_initial(token, document)?
                 },
                 InsertionMode::BeforeHtml => {
-                    self.handle_token_for_before_html(token)?
+                    self.handle_token_for_before_html(token, document)?
                 },
                 InsertionMode::BeforeHead => {
-                    self.handle_token_for_before_head(token)?
+                    self.handle_token_for_before_head(token, document)?
                 },
                 InsertionMode::InHead => {
-                    self.handle_token_for_in_head(token)?
+                    self.handle_token_for_in_head(token, document)?
                 },
                 InsertionMode::AfterHead => {
-                    self.handle_token_for_after_head(token)?
+                    self.handle_token_for_after_head(token, document)?
                 },
                 InsertionMode::InBody => {
-                    self.handle_token_for_in_body(token)?
+                    self.handle_token_for_in_body(token, document)?
                 },
                 InsertionMode::Text => {
-                    self.handle_token_for_text(token)?
+                    self.handle_token_for_text(token, document)?
                 },
                 InsertionMode::AfterBody => {
-                    self.handle_token_for_after_body(token)?
+                    self.handle_token_for_after_body(token, document)?
                 },
                 InsertionMode::AfterAfterBody => {
-                    self.handle_token_for_after_after_body(token)?
+                    self.handle_token_for_after_after_body(token, document)?
                 },
                 a => {
                     do yeet ParserError::UnimplementedInsertionMode(*a);
@@ -243,14 +240,14 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_initial(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_initial(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Doctype { name, public_id, system_id, force_quirks } => {
-                self.document.insert_document_type(name, system_id, public_id, force_quirks);
+                document.insert_document_type(name, system_id, public_id, force_quirks);
                 self.insertion_mode = InsertionMode::BeforeHtml;
             },
             Token::Comment { data } => {
-                self.document.insert_comment(data);
+                document.insert_comment(data);
             }
             a => {
                 self.reprocess_token(a, InsertionMode::BeforeHtml)?;
@@ -259,14 +256,14 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_before_html(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_before_html(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
             Token::Comment { data } => {
-                self.document.insert_comment(data);
+                document.insert_comment(data);
             },
             Token::StartTag { name, attributes } if name == "html" => {
-                let coordinate = self.document.insert_element(name, attributes);
+                let coordinate = document.insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
                 self.insertion_mode = InsertionMode::BeforeHead;
             }
@@ -277,11 +274,11 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_before_head(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_before_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
             Token::StartTag { name, attributes } if name == "head" => {
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate: coordinate.clone() });
                 self.head_pointer = Some(coordinate);
                 self.insertion_mode = InsertionMode::InHead;
@@ -293,14 +290,14 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_in_head(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_in_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
             Token::StartTag { ref name, .. } if name == "title" => {
-                self.generic_parsing_algorithm(token, false)?;
+                self.generic_parsing_algorithm(token, false, document)?;
             },
             Token::StartTag { ref name, .. } if name == "style" || name == "noframes" => {
-                self.generic_parsing_algorithm(token, true)?;
+                self.generic_parsing_algorithm(token, true, document)?;
             },
             Token::EndTag { ref name } if name == "head" => {
                 let _ = self.open_elements.pop();
@@ -313,13 +310,13 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_after_head(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_after_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
-                self.insert_character(char)?;
+                self.insert_character(char, document)?;
             },
             Token::StartTag { name, attributes } if name == "body" => {
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
                 self.frameset_ok = false;
                 self.insertion_mode = InsertionMode::InBody;
@@ -331,36 +328,36 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_in_body(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_in_body(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if char == '\u{0000}' => {},
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
                 if !self.active_formatting_elements.is_empty() {
                     todo!("Reconstruct active formatting elements!");
                 }
-                self.insert_character(char)?;
+                self.insert_character(char, document)?;
             },
             Token::Character { char } => {
                 if !self.active_formatting_elements.is_empty() {
                     todo!("Reconstruct active formatting elements!");
                 }
-                self.insert_character(char)?;
+                self.insert_character(char, document)?;
             },
             Token::StartTag { name, attributes } if name == "p" => {
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
             },
             Token::StartTag { name, attributes } if name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" => {
                 //TODO: check for p in button scope
                 //TODO: also check if current element is h1..=6
-                let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
             },
             Token::EndTag { name } if name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" => {
                 //TODO: Generate implied end tags
                 //TODO: Check for element in scope
                 while let Some(element) = self.open_elements.pop() {
-                    let element_name = &self.document.get_element_for_coordinate(element.coordinate).tag_name;
+                    let element_name = &document.get_element_for_coordinate(element.coordinate).tag_name;
                     if element_name == &name {
                         break;
                     }
@@ -368,7 +365,7 @@ impl HTMLParser {
             },
             Token::EndTag { name } if name == "p" => {
                 while let Some(element) = self.open_elements.pop() {
-                    let element_name = &self.document.get_element_for_coordinate(element.coordinate).tag_name;
+                    let element_name = &document.get_element_for_coordinate(element.coordinate).tag_name;
                     if element_name == &name {
                         break;
                     }
@@ -386,10 +383,10 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_text(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_text(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } => {
-                self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).data.push(char);
+                document.get_element_for_coordinate(self.current_element().unwrap().coordinate).data.push(char);
             },
             Token::EndTag { name } if name == "script" => {
                 todo!();
@@ -405,10 +402,10 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_after_body(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_after_body(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
-                self.handle_token_for_in_body(token)?
+                self.handle_token_for_in_body(token,  document)?
             },
             Token::EndTag { name } if name == "html" => {
                 //TODO: Something to do with fragment parsing.
@@ -421,10 +418,10 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_after_after_body(&mut self, token: Token) -> Result<(), ParserError> {
+    fn handle_token_for_after_after_body(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
             Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
-                self.handle_token_for_in_body(token)?
+                self.handle_token_for_in_body(token, document)?
             },
             Token::EOF => {
                 self.done_parsing = true;
@@ -436,9 +433,9 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn generic_parsing_algorithm(&mut self, token: Token, raw_text: bool) -> Result<(), ParserError> {
+    fn generic_parsing_algorithm(&mut self, token: Token, raw_text: bool, document: &mut Document) -> Result<(), ParserError> {
         if let Token::StartTag { name, attributes } = token {
-            let coordinate = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+            let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
             self.open_elements.push(OpenElement { coordinate: coordinate.clone() });
             self.tokenization_state = if raw_text {
                 TokenizationState::RAWTEXT
@@ -467,8 +464,8 @@ impl HTMLParser {
         self.tokenization_state = next_state;
     }
 
-    fn insert_character(&mut self, c: char) -> Result<(), ParserError> {
-        let current_node = self.document.get_element_for_coordinate(self.current_element().unwrap().coordinate);
+    fn insert_character(&mut self, c: char, document: &mut Document) -> Result<(), ParserError> {
+        let current_node = document.get_element_for_coordinate(self.current_element().unwrap().coordinate);
         if ["table", "tbody", "tfoot", "thead", "tr"].contains(&current_node.tag_name.as_str()) {
             todo!("Foster parenting")
         }

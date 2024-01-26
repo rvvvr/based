@@ -4,3 +4,4 @@
 pub mod parser;
 pub mod dom;
 pub mod util;
+pub mod context;

@@ -53,6 +53,7 @@ dependencies = [
  "reqwest",
  "thiserror",
  "tracing",
+ "url",
 ]
 
 [[package]]

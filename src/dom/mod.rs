@@ -1,4 +1,4 @@
-use crate::parser::css::{CSSSource, Style, StyleData};
+use crate::parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader};
 
 #[derive(Default, Debug)]
 pub struct Document {
@@ -44,6 +44,10 @@ impl Document {
     pub fn add_style(&mut self, style: Style) {
         self.style.styles.push(style);
     }
+
+    pub fn cascade(&mut self) {
+        Cascader::default().cascade(&mut self.children, &self.style);
+    }
 }
 
 impl DOMElement for Document {
@@ -62,7 +66,7 @@ impl DOMElement for Document {
         let coordinate = DOMCoordinate {
             indices: vec![self.children.len()]
         };
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), tag_name, data: String::new(), attributes }));
+        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes }));
         return coordinate;
     }
     
@@ -100,6 +104,7 @@ pub struct Element {
     pub tag_name: String,
     pub data: String,
     pub coordinate: DOMCoordinate,
+    pub css: CSSProps,
     pub children: Vec<Node>,
     pub attributes: Vec<(String, String)>,
 }
@@ -110,7 +115,7 @@ impl DOMElement for Element {
             indices: self.coordinate.indices.clone()
         };
         coordinate.indices.push(self.children.len());
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), tag_name , data: String::new(), attributes }));
+        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes }));
         return coordinate;
     }
     fn insert_comment(&mut self, data: String) {
