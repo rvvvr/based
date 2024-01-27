@@ -1,8 +1,10 @@
-use std::{fs::File, path::{PathBuf}, io::Read, num::ParseIntError};
+use std::{fs::File, path::{PathBuf}, io::Read, num::ParseIntError, cmp::Ordering};
 
 use reqwest::Url;
 
 use thiserror::Error;
+
+use crate::util::approx_eq;
 
 use self::properties::{Colour, Property, Display, FontSize, TextAlign};
 
@@ -70,6 +72,9 @@ impl CSSParser {
             }
             self.tokenizer.tokenize(&mut self.tokens)?;
             styles.push(self.consume_list_of_rules()?);
+        }
+        for style in &mut styles {
+            style.let_em_know();
         }
         Ok(styles)
     }
@@ -208,7 +213,7 @@ impl CSSTokenizer {
     pub fn tokenize(&mut self, tokens: &mut Vec<CSSToken>) -> Result<(), CSSError> {
         self.preprocess()?;
         loop {
-            self.consume_comments();
+            self.consume_comments()?;
             match self.consume() {
                 Char::Char('\u{0009}' | '\u{000A}' | '\u{0020}') => {
                     tokens.push(self.consume_whitespace_token()?);
@@ -455,7 +460,7 @@ pub struct Style {
     pub level: StyleLevel,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum StyleLevel {
     #[default]
     Author,
@@ -464,7 +469,15 @@ pub enum StyleLevel {
 }
 
 impl Style {
-
+    pub fn let_em_know(&mut self) {
+        for rule in &mut self.rules {
+            if let Block::Declarations(ref mut declarations) = rule.value {
+                for declaration in declarations {
+                    declaration.level = self.level;
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -651,11 +664,12 @@ impl Selector {
 pub struct DeclarationBuilder {
     kind: String,
     value: Vec<Component>,
+    level: StyleLevel,
 }
 
 impl DeclarationBuilder {
     pub fn from_kind(kind: String) -> Self {
-        Self { kind, value: vec![] }
+        Self { kind, value: vec![], level: StyleLevel::default()}
     }
 
     pub fn set_kind(&mut self, kind: String) {
@@ -664,6 +678,10 @@ impl DeclarationBuilder {
 
     pub fn push_value(&mut self, shmeep: Component) {
         self.value.push(shmeep);
+    }
+
+    pub fn set_level(&mut self, level: StyleLevel) {
+        self.level = level;
     }
 
     pub fn build(self) -> Result<Declaration, CSSError> {
@@ -675,14 +693,45 @@ impl DeclarationBuilder {
             "text-align" => DeclarationKind::TextAlign(TextAlign::from_components(self.value)),
             _ => DeclarationKind::Unknown(self.kind, self.value),
         };
-        Ok(Declaration { important: false, kind })
+        Ok(Declaration { important: false, kind, level: self.level })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Declaration {
     important: bool,
-    kind: DeclarationKind
+    kind: DeclarationKind,
+    level: StyleLevel,
+}
+
+impl PartialEq for Declaration {
+    fn eq(&self, other: &Self) -> bool {
+        return self.important == other.important && approx_eq::<DeclarationKind>(&self.kind, &other.kind) && approx_eq::<StyleLevel>(&self.level, &other.level);
+    }
+}
+
+impl PartialOrd for Declaration {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(match (self.important, other.important, self.level, other.level) {
+            (_, _, StyleLevel::UserAgent, StyleLevel::UserAgent) => Ordering::Equal,
+            (_, _, StyleLevel::User, StyleLevel::User) => Ordering::Equal,
+            (_, _, StyleLevel::Author, StyleLevel::Author) => Ordering::Equal,
+            (true, false, _, _) => Ordering::Greater,
+            (false, true, _, _) => Ordering::Less,
+            (true, true, StyleLevel::UserAgent, StyleLevel::User) => Ordering::Greater,
+            (true, true, StyleLevel::User, StyleLevel::UserAgent) => Ordering::Less,
+            (true, true, StyleLevel::UserAgent, StyleLevel::Author) => Ordering::Greater,
+            (true, true, StyleLevel::Author, StyleLevel::UserAgent) => Ordering::Less,
+            (true, true, StyleLevel::User, StyleLevel::Author) => Ordering::Greater,
+            (true, true, StyleLevel::Author, StyleLevel::User) => Ordering::Less,
+            (false, false, StyleLevel::Author, StyleLevel::User) => Ordering::Greater,
+            (false, false, StyleLevel::User, StyleLevel::Author) => Ordering::Greater,
+            (false, false, StyleLevel::Author, StyleLevel::UserAgent) => Ordering::Greater,
+            (false, false, StyleLevel::UserAgent, StyleLevel::Author) => Ordering::Less,
+            (false, false, StyleLevel::User, StyleLevel::UserAgent) => Ordering::Greater,
+            (false, false, StyleLevel::UserAgent, StyleLevel::User) => Ordering::Less,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -8,3 +8,8 @@
         name.strip_suffix("::f").unwrap().to_string()
     }}
 }
+
+pub fn approx_eq<T>(l: &T, r: &T) -> bool {
+    std::mem::discriminant::<T>(l) == std::mem::discriminant::<T>(r)
+
+}
