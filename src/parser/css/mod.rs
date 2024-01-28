@@ -84,7 +84,7 @@ impl CSSParser {
         loop {
             match self.consume() {
                 CSSToken::Whitespace | CSSToken::Semicolon => {},
-                a if let CSSToken::Ident(_) = a => {
+                a @ CSSToken::Ident(_) => {
                     let mut components = vec![Component::Token(a)];
                     loop {
                         match self.peek() {
@@ -218,7 +218,7 @@ impl CSSTokenizer {
                 Char::Char('\u{0009}' | '\u{000A}' | '\u{0020}') => {
                     tokens.push(self.consume_whitespace_token()?);
                 },
-                Char::Char(c) if ('A'..='Z').contains(&c) || ('a'..='z').contains(&c) || c as u32 > '\u{0080}' as u32 || c == '_' => {
+                Char::Char('A'..='Z' | 'a'..='z' | '_' | '\u{0080}'..='\u{10FFFF}') => {
                     self.reconsume();
                     tokens.push(self.consume_ident_like_token()?);
                 },
@@ -343,7 +343,7 @@ impl CSSTokenizer {
         let mut result = String::with_capacity(10);
         loop {
             match self.consume() {
-                Char::Char(c) if ('A'..='Z').contains(&c) || ('a'..='z').contains(&c) || ('0'..='9').contains(&c) || c as u32 > '\u{0080}' as u32 || c == '_' || c == '-' => {
+                Char::Char(c @ ('A'..='Z' | 'a'..='z' | '0'..='9' | '\u{0080}'..='\u{10FFFF}' | '_' | '-' )) => {
                     result.push(c);
                 },
                 Char::Char('\\') => {
@@ -387,7 +387,7 @@ impl CSSTokenizer {
         if let Char::Char(c) = self.peek() {
             if ('A'..='Z').contains(&c) || ('a'..='z').contains(&c) || c as u32 > '\u{0080}' as u32 || c == '_' || c == '\\' {
                 let unit = self.consume_ident_sequence()?;
-                return Ok(CSSToken::Number(CSSNumber::Unit(number, Unit::from_string(unit).unwrap_or(Unit::Px))));
+                return Ok(CSSToken::Number(CSSNumber::Unit(number, Unit::from_string(unit).unwrap_or_default())));
             } else if c == '%' {
                 self.consume();
                 return Ok(CSSToken::Number(CSSNumber::Percentage(number)));
@@ -613,7 +613,7 @@ impl Selector {
                     _ => panic!(),
                 }
             },
-            ref s if let Selector::Type(_) = s => {
+            Selector::Type(_) => {
                 match component {
                     Component::Token(t) => {
                         match t {
@@ -635,19 +635,19 @@ impl Selector {
                     _ => panic!(),
                 }
             },
-            ref s if let Selector::Child(l, r) = s => {
+            Selector::Child(l, r) => {
                 let new_l = l.clone();
                 let mut new_r = r.clone();
                 new_r.append(component);
                 new_self = Selector::Child(new_l, new_r);
             }
-            ref s if let Selector::NextSibling(l, r) = s => {
+            Selector::NextSibling(l, r) => {
                 let new_l = l.clone();
                 let mut new_r = r.clone();
                 new_r.append(component);
                 new_self = Selector::NextSibling(new_l, new_r);
             },
-            ref s if let Selector::Both(l, r) = s => {
+            Selector::Both(l, r) => {
                 let new_l = l.clone();
                 let mut new_r = r.clone();
                 new_r.append(component);
@@ -786,8 +786,9 @@ impl Default for CSSNumber {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 pub enum Unit {
+    #[default]
     Px,
     Cm,
     Mm,

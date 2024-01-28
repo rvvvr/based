@@ -276,7 +276,7 @@ impl HTMLParser {
 
     fn handle_token_for_before_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
-            Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
+            Token::Character { char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}' } => {},
             Token::StartTag { name, attributes } if name == "head" => {
                 let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate: coordinate.clone() });

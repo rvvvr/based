@@ -21,13 +21,7 @@ impl Cascader<'_> {
                         }
                     }
                 }
-                for rule in applicable_rules {
-                    if let Block::Declarations(declarations) = &rule.value {
-                        for declaration in declarations {
-                            self.apply(el, declaration.clone());
-                        }
-                    }
-                }
+
             }
         }
     }
