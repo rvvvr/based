@@ -1,4 +1,4 @@
-use std::{fs::File, path::{PathBuf}, io::Read, num::ParseIntError, cmp::Ordering};
+use std::{fs::File, path::{PathBuf}, io::Read, num::ParseIntError, cmp::Ordering, collections::HashMap, mem::Discriminant};
 
 use reqwest::Url;
 
@@ -79,7 +79,7 @@ impl CSSParser {
         Ok(styles)
     }
 
-    pub fn parse_declaration_list(&mut self) -> Result<Vec<Declaration>, CSSError> {
+    pub fn parse_declaration_list(&mut self) -> Result<Vec<(Discriminant<DeclarationKind>, Declaration)>, CSSError> {
         let mut declarations = vec![];
         loop {
             match self.consume() {
@@ -96,7 +96,8 @@ impl CSSParser {
                             }
                         }
                     }
-                    declarations.push(self.consume_declaration(components)?);
+                    let declaration = self.consume_declaration(components)?;
+                    declarations.push((std::mem::discriminant(&declaration.kind), declaration));
                 }
                 CSSToken::EOF => {
                     break;
@@ -222,7 +223,7 @@ impl CSSTokenizer {
                     self.reconsume();
                     tokens.push(self.consume_ident_like_token()?);
                 },
-                Char::Char(c) if c == '>' => {
+                Char::Char(c @ ('>' | '*')) => {
                     tokens.push(CSSToken::Delim(Char::Char(c)));
                 }
                 Char::Char('{') => {
@@ -472,7 +473,7 @@ impl Style {
     pub fn let_em_know(&mut self) {
         for rule in &mut self.rules {
             if let Block::Declarations(ref mut declarations) = rule.value {
-                for declaration in declarations {
+                for (_, declaration) in declarations {
                     declaration.level = self.level;
                 }
             }
@@ -518,7 +519,7 @@ impl RuleBuilder {
             selector.append(component);
         }
         println!("{:?}", selector);
-        let mut declarations: Vec<Declaration> = vec![];
+        let mut declarations: HashMap<Discriminant<DeclarationKind>, Declaration> = HashMap::default();
         for ref mut block in self.blocks {
             declarations.extend(block.parse_as_declarations()?)
         }
@@ -533,6 +534,22 @@ pub struct Rule {
 }
 
 impl Rule {
+    pub fn squash(&mut self, other: &Rule) {
+        if let Block::Declarations(ref mut self_declarations) = self.value {
+            if let Block::Declarations(ref other_declarations) = other.value {
+                for (discriminant, declaration) in other_declarations {
+                    if self_declarations.contains_key(discriminant) {
+                        let mutclaration = unsafe { self_declarations.get_mut(discriminant).unwrap_unchecked() };
+                        if declaration >= mutclaration {
+                            *mutclaration = declaration.clone();
+                        }
+                    } else {
+                        self_declarations.insert(*discriminant, declaration.clone());
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -546,7 +563,7 @@ pub enum Prelude {
 pub enum Block {
     #[default]
     Empty,
-    Declarations(Vec<Declaration>),
+    Declarations(HashMap<Discriminant<DeclarationKind>, Declaration>),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -559,7 +576,7 @@ impl SimpleBlock {
         self.value.push(component);
     }
 
-    pub fn parse_as_declarations(&mut self) -> Result<Vec<Declaration>, CSSError> {
+    pub fn parse_as_declarations(&mut self) -> Result<Vec<(Discriminant<DeclarationKind>, Declaration)>, CSSError> {
         let tokens = self.value.iter().map(|c| match c {
             Component::Token(t) => {
                 t.clone()
@@ -601,12 +618,11 @@ impl Selector {
                                 //attribute selectors
                                 //pseudo-classes
                                 //class selectors
-                                if s == "*" {
-                                    new_self = Selector::Universal
-                                } else {
-                                    new_self = Selector::Type(s);
-                                }
+                                new_self = Selector::Type(s);
                             },
+                            CSSToken::Delim(Char::Char('*')) => {
+                                new_self = Selector::Universal;
+                            }
                             _ => panic!(),
                         }
                     },
@@ -653,6 +669,9 @@ impl Selector {
                 new_r.append(component);
                 new_self = Selector::Both(new_l, new_r);
             }
+            Selector::Universal => {
+                new_self = self.clone();
+            }, //probably just the wind...
             _ => panic!(),
         }
         *self = new_self;

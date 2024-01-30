@@ -1,4 +1,10 @@
 /* to be massively expanded on */
+* {
+    font-size: 12px;
+    color: blue;
+    display: block;
+    text-align: center;
+}
 
 html, body {
     display: block;

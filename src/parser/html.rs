@@ -258,7 +258,7 @@ impl HTMLParser {
 
     fn handle_token_for_before_html(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
-            Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
+            Token::Character { char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}' } => {},
             Token::Comment { data } => {
                 document.insert_comment(data);
             },
@@ -292,7 +292,7 @@ impl HTMLParser {
 
     fn handle_token_for_in_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
-            Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {},
+            Token::Character { char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}' } => {},
             Token::StartTag { ref name, .. } if name == "title" => {
                 self.generic_parsing_algorithm(token, false, document)?;
             },
@@ -312,7 +312,7 @@ impl HTMLParser {
 
     fn handle_token_for_after_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
-            Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
+            Token::Character { char: char @ ('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}') } => {
                 self.insert_character(char, document)?;
             },
             Token::StartTag { name, attributes } if name == "body" => {
@@ -330,8 +330,8 @@ impl HTMLParser {
 
     fn handle_token_for_in_body(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
         match token {
-            Token::Character { char } if char == '\u{0000}' => {},
-            Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
+            Token::Character { char: '\u{0000}' } =>  {},
+            Token::Character { char: char @ ('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}') } => {
                 if !self.active_formatting_elements.is_empty() {
                     todo!("Reconstruct active formatting elements!");
                 }
