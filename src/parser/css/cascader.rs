@@ -38,6 +38,8 @@ impl<'a> Cascader {
                 self.last_sibling = el.tag_name.clone();
                 self.parent_name_stack.push(el.tag_name.clone());
                 self.cascade(&mut el.children, style);
+                self.parent_prop_stack.pop();
+                self.parent_name_stack.pop();
             }
         }
     }
