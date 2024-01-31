@@ -9,7 +9,7 @@ pub trait Property {
 
 #[derive(Default, Debug, Clone)]
 pub struct Colour {
-    real: Rgba<u8>,
+    pub real: Rgba<u8>,
 }
 
 impl Colour {
@@ -19,23 +19,23 @@ impl Colour {
         }
     }
 
-    const MAROON: Colour =      Colour::new(0x80, 0x00, 0x00, 0xFF);
-    const RED: Colour =         Colour::new(0xFF, 0x00, 0x00, 0xFF);
-    const ORANGE: Colour =      Colour::new(0xFF, 0xA5, 0x00, 0xFF);
-    const YELLOW: Colour =      Colour::new(0xFF, 0xFF, 0x00, 0xFF);
-    const OLIVE: Colour =       Colour::new(0x80, 0x80, 0x00, 0xFF);
-    const PURPLE: Colour =      Colour::new(0x80, 0x00, 0x80, 0xFF);
-    const FUCHIA: Colour =      Colour::new(0xFF, 0x00, 0xFF, 0xFF);
-    const WHITE: Colour =       Colour::new(0xFF, 0xFF, 0xFF, 0xFF);
-    const LIME: Colour =        Colour::new(0x00, 0xFF, 0x00, 0xFF);
-    const GREEN: Colour =       Colour::new(0x00, 0x80, 0x00, 0xFF);
-    const NAVY: Colour =        Colour::new(0x00, 0x00, 0x80, 0xFF);
-    const BLUE: Colour =        Colour::new(0x00, 0x00, 0xFF, 0xFF);
-    const AQUA: Colour =        Colour::new(0x00, 0xFF, 0xFF, 0xFF);
-    const TEAL: Colour =        Colour::new(0x00, 0x80, 0x80, 0xFF);
-    const BLACK: Colour =       Colour::new(0x00, 0x00, 0x00, 0xFF);
-    const SILVER: Colour =      Colour::new(0xc0, 0xc0, 0xc0, 0xFF);
-    const GRAY: Colour =        Colour::new(0x80, 0x80, 0x80, 0xFF);
+    pub const MAROON: Colour =      Colour::new(0x80, 0x00, 0x00, 0xFF);
+    pub const RED: Colour =         Colour::new(0xFF, 0x00, 0x00, 0xFF);
+    pub const ORANGE: Colour =      Colour::new(0xFF, 0xA5, 0x00, 0xFF);
+    pub const YELLOW: Colour =      Colour::new(0xFF, 0xFF, 0x00, 0xFF);
+    pub const OLIVE: Colour =       Colour::new(0x80, 0x80, 0x00, 0xFF);
+    pub const PURPLE: Colour =      Colour::new(0x80, 0x00, 0x80, 0xFF);
+    pub const FUCHIA: Colour =      Colour::new(0xFF, 0x00, 0xFF, 0xFF);
+    pub const WHITE: Colour =       Colour::new(0xFF, 0xFF, 0xFF, 0xFF);
+    pub const LIME: Colour =        Colour::new(0x00, 0xFF, 0x00, 0xFF);
+    pub const GREEN: Colour =       Colour::new(0x00, 0x80, 0x00, 0xFF);
+    pub const NAVY: Colour =        Colour::new(0x00, 0x00, 0x80, 0xFF);
+    pub const BLUE: Colour =        Colour::new(0x00, 0x00, 0xFF, 0xFF);
+    pub const AQUA: Colour =        Colour::new(0x00, 0xFF, 0xFF, 0xFF);
+    pub const TEAL: Colour =        Colour::new(0x00, 0x80, 0x80, 0xFF);
+    pub const BLACK: Colour =       Colour::new(0x00, 0x00, 0x00, 0xFF);
+    pub const SILVER: Colour =      Colour::new(0xc0, 0xc0, 0xc0, 0xFF);
+    pub const GRAY: Colour =        Colour::new(0x80, 0x80, 0x80, 0xFF);
 
 }
 
@@ -165,6 +165,33 @@ impl Property for FontSize {
     }
 }
 
+
+#[derive(Debug, Clone, Default)]
+pub struct Dimensionality { 
+    pub value: CSSNumber,
+}
+
+impl Dimensionality {
+    pub const fn new(value: CSSNumber) -> Self {
+        Self {
+            value
+        }
+    }
+}
+
+impl Property for Dimensionality {
+    fn from_components(components: Vec<Component>) -> CSSValue<Self>
+            where Self: Sized {
+        if let Some(Component::Token(CSSToken::Number(n))) = components.get(0) {
+            CSSValue::Value(Self {
+                value: n.clone()
+            })
+        } else {
+            unimplemented!();
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum TextAlign {
     Left,
@@ -188,6 +215,33 @@ impl Property for TextAlign {
             })
         } else {
             CSSValue::default()
+        }
+    }
+}
+//these could all be squashed into a macro
+
+#[derive(Debug, Clone)]
+pub struct Spacing {
+    value: CSSNumber
+}
+
+impl Spacing {
+    pub const fn new(value: CSSNumber) -> Self {
+        Self {
+            value
+        }
+    }
+}
+
+impl Property for Spacing {
+    fn from_components(components: Vec<Component>) -> CSSValue<Self>
+            where Self: Sized {
+        if let Some(Component::Token(CSSToken::Number(n))) = components.get(0) {
+            CSSValue::Value(Self {
+                value: n.clone()
+            })
+        } else {
+            unimplemented!();
         }
     }
 }

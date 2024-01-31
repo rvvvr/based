@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::util::approx_eq;
 
-use self::properties::{Colour, Property, Display, FontSize, TextAlign};
+use self::properties::{Colour, Property, Display, FontSize, TextAlign, Dimensionality, Spacing};
 
 use super::Char;
 
@@ -710,6 +710,17 @@ impl DeclarationBuilder {
             "display" => DeclarationKind::Display(Display::from_components(self.value)),
             "font-size" => DeclarationKind::FontSize(FontSize::from_components(self.value)),
             "text-align" => DeclarationKind::TextAlign(TextAlign::from_components(self.value)),
+            "background-color" => DeclarationKind::BackgroundColor(Colour::from_components(self.value)),
+            "width" => DeclarationKind::Width(Dimensionality::from_components(self.value)),
+            "height" => DeclarationKind::Height(Dimensionality::from_components(self.value)),
+            "padding-top" => DeclarationKind::PaddingTop(Spacing::from_components(self.value)),
+            "padding-bottom" => DeclarationKind::PaddingBottom(Spacing::from_components(self.value)),
+            "padding-left" => DeclarationKind::PaddingLeft(Spacing::from_components(self.value)),
+            "padding-right" => DeclarationKind::PaddingRight(Spacing::from_components(self.value)),
+            "margin-top" => DeclarationKind::MarginTop(Spacing::from_components(self.value)),
+            "margin-bottom" => DeclarationKind::MarginBottom(Spacing::from_components(self.value)),
+            "margin-left" => DeclarationKind::MarginLeft(Spacing::from_components(self.value)),
+            "margin-right" => DeclarationKind::MarginRight(Spacing::from_components(self.value)),
             _ => DeclarationKind::Unknown(self.kind, self.value),
         };
         Ok(Declaration { important: false, kind, level: self.level })
@@ -761,14 +772,36 @@ pub enum DeclarationKind {
     Display(CSSValue<Display>),
     FontSize(CSSValue<FontSize>),
     TextAlign(CSSValue<TextAlign>),
+    BackgroundColor(CSSValue<Colour>),
+    Width(CSSValue<Dimensionality>),
+    Height(CSSValue<Dimensionality>),
+    PaddingTop(CSSValue<Spacing>),
+    PaddingBottom(CSSValue<Spacing>),
+    PaddingLeft(CSSValue<Spacing>),
+    PaddingRight(CSSValue<Spacing>),
+    MarginTop(CSSValue<Spacing>),
+    MarginBottom(CSSValue<Spacing>),
+    MarginLeft(CSSValue<Spacing>),
+    MarginRight(CSSValue<Spacing>), 
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct CSSProps {
-    color: CSSValue<Colour>,
-    display: CSSValue<Display>,
-    font_size: CSSValue<FontSize>,
-    text_align: CSSValue<TextAlign>,
+    pub color: CSSValue<Colour>,
+    pub display: CSSValue<Display>,
+    pub font_size: CSSValue<FontSize>,
+    pub text_align: CSSValue<TextAlign>,
+    pub background_color: CSSValue<Colour>,
+    pub width: CSSValue<Dimensionality>,
+    pub height: CSSValue<Dimensionality>,
+    pub padding_top: CSSValue<Spacing>,
+    pub padding_bottom: CSSValue<Spacing>,
+    pub padding_left: CSSValue<Spacing>,
+    pub padding_right: CSSValue<Spacing>,
+    pub margin_top: CSSValue<Spacing>,
+    pub margin_bottom: CSSValue<Spacing>,
+    pub margin_left: CSSValue<Spacing>,
+    pub margin_right: CSSValue<Spacing>,
 }
 
 #[derive(Debug, Clone)]
@@ -797,6 +830,16 @@ pub enum CSSNumber {
     Number(Numeric),
     Percentage(Numeric),
     Unit(Numeric, Unit),
+}
+
+impl CSSNumber {
+    pub fn unwrap(&self) -> Numeric {
+        match self {
+            CSSNumber::Number(n) | CSSNumber::Unit(n, _) | CSSNumber::Percentage(n) => {
+                n.clone()
+            }
+        }
+    }
 }
 
 impl Default for CSSNumber {

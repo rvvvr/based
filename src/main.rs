@@ -1,9 +1,13 @@
 use std::path::PathBuf;
+use futures::executor;
 
-use based::{parser::html::HTMLParser, context::Context};
+use based::context::Context;
+use shmontshmend::Frontend;
+
+pub mod shmontshmend;
 
 fn main() {
     let mut context = Context::default();
-    context.load();
-    context.go();
+    let mut frontend = Frontend {};
+    executor::block_on(frontend.run(context));
 }

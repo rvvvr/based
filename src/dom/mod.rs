@@ -1,4 +1,4 @@
-use crate::parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader};
+use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport};
 
 #[derive(Default, Debug)]
 pub struct Document {
@@ -45,8 +45,12 @@ impl Document {
         self.style.styles.push(style);
     }
 
-    pub fn cascade(&mut self) {
-        Cascader::default().cascade(&mut self.children, &self.style);
+    pub fn cascade(&mut self, viewport: Viewport) {
+        Cascader::default().cascade(&mut self.children, &self.style, viewport);
+    }
+
+    pub fn layoutify(&self) -> &Vec<Node> {
+        &self.children
     }
 }
 
@@ -148,6 +152,7 @@ pub enum Node {
     },
     Element(Element),
     Text(String),
+    PhantomBox(Element), //only for layoutge
 }
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
