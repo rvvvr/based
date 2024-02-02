@@ -825,7 +825,7 @@ pub enum CSSToken {
     EOF,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
 pub enum CSSNumber {
     Number(Numeric),
     Percentage(Numeric),
@@ -848,7 +848,7 @@ impl Default for CSSNumber {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Copy)]
 pub enum Unit {
     #[default]
     Px,
@@ -897,7 +897,7 @@ pub enum CSSSource {
     Pretokenized(Vec<CSSToken>),
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
 pub enum Numeric {
     Integer(i32),
     Number(f32),

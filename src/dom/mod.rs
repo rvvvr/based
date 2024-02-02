@@ -1,4 +1,4 @@
-use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport};
+use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport, layout::{LayoutNode, Layoutifier}};
 
 #[derive(Default, Debug)]
 pub struct Document {
@@ -49,8 +49,9 @@ impl Document {
         Cascader::default().cascade(&mut self.children, &self.style, viewport);
     }
 
-    pub fn layoutify(&self) -> &Vec<Node> {
-        &self.children
+    pub fn layoutify(&self, viewport: Viewport) -> LayoutNode {
+        let mut layoutifier = Layoutifier::default();
+        layoutifier.layoutify(viewport, self)
     }
 }
 

@@ -21,7 +21,8 @@ impl<'a> Cascader {
             width: CSSValue::Value(Dimensionality::new(CSSNumber::Unit(Numeric::Integer(viewport.width as i32), Unit::Px))),
             height: CSSValue::Value(Dimensionality::new(CSSNumber::Unit(Numeric::Integer(viewport.height as i32), Unit::Px))),
             ..Default::default()
-        })
+        });
+        self.cascade_internal(input, style);
     }
 
     fn cascade_internal(&'a mut self, input: &'a mut Vec<Node>, style: &StyleData) {

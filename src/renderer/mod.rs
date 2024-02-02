@@ -1,6 +1,6 @@
-use vello::{SceneBuilder, kurbo::{Affine, Shape, Rect}, peniko::{BrushRef, Color}};
+use vello::{SceneBuilder, kurbo::{Affine, Shape, Rect, Stroke, Point}, peniko::{BrushRef, Color, Gradient, ColorStop}};
 
-use crate::{context::Viewport, dom::Node, parser::css::{CSSValue, properties::Colour, Numeric}};
+use crate::{context::Viewport, dom::Node, parser::css::{CSSValue, properties::Colour, Numeric}, layout::LayoutNode};
 
 #[derive(Debug, Default)]
 pub struct PageRenderer {
@@ -8,41 +8,17 @@ pub struct PageRenderer {
 }
 
 impl PageRenderer {
-    pub fn render(&self, viewport: Viewport, nodes: &Vec<Node>, builder: &mut SceneBuilder) {
-        for node in nodes {
-            if let Node::Element(el) = node {
-                let color = if let CSSValue::Value(color) = &el.css.background_color {
-                    color.real
+    pub fn render(&self, viewport: Viewport, nodes: &Vec<LayoutNode>, builder: &mut SceneBuilder, last_width: f64) {
+        for node in nodes.iter().rev() {
+            if let Some(el) = &node.element {
+                let color = if let CSSValue::Value(c) = el.css.background_color {
+                    c.real
                 } else {
-                    Colour::BLACK.real
+                    Colour::default().real
                 };
-                let width = if let CSSValue::Value(width) = &el.css.width {
-                    match width.value.unwrap() {
-                        Numeric::Integer(n) => {
-                            n as f64
-                        },
-                        Numeric::Number(n) => {
-                            n as f64
-                        }
-                    }
-                } else {
-                    0.
-                };
-                let height = if let CSSValue::Value(height) = &el.css.height {
-                    match height.value.unwrap() {
-                        Numeric::Integer(n) => {
-                            n as f64
-                        },
-                        Numeric::Number(n) => {
-                            n as f64
-                        }
-                    }
-                } else {
-                    0.
-                };
-                builder.fill(vello::peniko::Fill::EvenOdd, Affine::IDENTITY, BrushRef::Solid(Color::rgba8(color.red, color.green, color.blue, color.alpha)), None, &Rect::new(0., 0., width, height));
-                self.render(viewport, &el.children, builder);
+                builder.fill(vello::peniko::Fill::NonZero, Affine::IDENTITY, BrushRef::Solid(Color::rgb8(color.red, color.green, color.blue)), Some(Affine::IDENTITY), &Rect::new(0., 0., node.absolute_width as f64, node.absolute_height as f64));
             }
+            self.render(viewport, &node.children, builder, last_width / 2.);
         }
-    }
+    } 
 }

@@ -7,7 +7,7 @@ pub trait Property {
         where Self: Sized;
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Colour {
     pub real: Rgba<u8>,
 }
@@ -69,7 +69,7 @@ impl Property for Colour {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub struct Display {
     outside: DisplayOutside,
     inside: DisplayInside,
@@ -118,7 +118,7 @@ impl Property for Display {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub enum DisplayOutside {
     #[default]
     Block,
@@ -128,7 +128,7 @@ pub enum DisplayOutside {
     Contents,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub enum DisplayInside {
     #[default]
     Flow,
@@ -139,7 +139,7 @@ pub enum DisplayInside {
     Ruby,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub struct FontSize {
     value: CSSNumber,
 }
@@ -166,7 +166,7 @@ impl Property for FontSize {
 }
 
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub struct Dimensionality { 
     pub value: CSSNumber,
 }
@@ -192,7 +192,7 @@ impl Property for Dimensionality {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub enum TextAlign {
     Left,
     Right,
@@ -220,7 +220,7 @@ impl Property for TextAlign {
 }
 //these could all be squashed into a macro
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Spacing {
     value: CSSNumber
 }

@@ -56,7 +56,7 @@ impl Context {
     }
 
     pub fn render(&self, builder: &mut SceneBuilder) {
-        self.renderer.render(self.viewport, self.document.layoutify(), builder);
+        self.renderer.render(self.viewport, &self.document.layoutify(self.viewport).children, builder, 100.);
     }
 }
 
