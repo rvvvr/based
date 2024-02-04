@@ -1,6 +1,6 @@
 use crate::{dom::{Node, Element}, parser::css::{Selector, Rule, properties::Dimensionality}, context::Viewport};
 
-use super::{StyleData, Prelude, Declaration, DeclarationKind, Block, CSSValue, properties::{Colour, TextAlign, FontSize, Display, Spacing}, CSSProps, RuleBuilder, CSSNumber, Unit, Numeric};
+use super::{StyleData, Prelude, Declaration, DeclarationKind, Block, CSSValue, properties::{Colour, TextAlign, FontSize, Display}, CSSProps, RuleBuilder, CSSNumber, Unit, Numeric};
 
 #[derive(Debug, Default)]
 pub struct Cascader {
@@ -118,56 +118,56 @@ impl<'a> Cascader {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().margin_top.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                     DeclarationKind::MarginBottom(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().margin_bottom.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                     DeclarationKind::MarginLeft(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().margin_left.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                     DeclarationKind::MarginRight(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().margin_right.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                     DeclarationKind::PaddingTop(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().padding_top.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                     DeclarationKind::PaddingBottom(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().padding_bottom.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                     DeclarationKind::PaddingLeft(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().padding_left.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                     DeclarationKind::PaddingRight(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().padding_right.clone();
                         } else if let CSSValue::Initial = v {
-                            *v = CSSValue::<Spacing>::default();
+                            *v = CSSValue::<Dimensionality>::default();
                         }
                     }
                 }

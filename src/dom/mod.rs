@@ -1,4 +1,4 @@
-use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport, layout::{LayoutNode, Layoutifier}};
+use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport, layout::{LayoutInfo}};
 
 #[derive(Default, Debug)]
 pub struct Document {
@@ -49,9 +49,12 @@ impl Document {
         Cascader::default().cascade(&mut self.children, &self.style, viewport);
     }
 
-    pub fn layoutify(&self, viewport: Viewport) -> LayoutNode {
-        let mut layoutifier = Layoutifier::default();
-        layoutifier.layoutify(viewport, self)
+    pub fn layoutify(&self, viewport: Viewport) {
+        for child in &mut self.children {
+            if let Node::Element(el) = child {
+                el.layout(viewport.into_layout())
+            }
+        }
     }
 }
 
@@ -71,7 +74,7 @@ impl DOMElement for Document {
         let coordinate = DOMCoordinate {
             indices: vec![self.children.len()]
         };
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes }));
+        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes, layout_info: LayoutInfo::default() }));
         return coordinate;
     }
     
@@ -112,6 +115,7 @@ pub struct Element {
     pub css: CSSProps,
     pub children: Vec<Node>,
     pub attributes: Vec<(String, String)>,
+    pub layout_info: LayoutInfo,
 }
 
 impl DOMElement for Element {
@@ -120,7 +124,7 @@ impl DOMElement for Element {
             indices: self.coordinate.indices.clone()
         };
         coordinate.indices.push(self.children.len());
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes }));
+        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes, layout_info: LayoutInfo::default() }));
         return coordinate;
     }
     fn insert_comment(&mut self, data: String) {

@@ -1,7 +1,7 @@
 use url::Url;
 use vello::SceneBuilder;
 
-use crate::{parser::{html::HTMLParser, css::CSSParser}, dom::Document, renderer::PageRenderer};
+use crate::{parser::{html::HTMLParser, css::CSSParser}, dom::Document, renderer::PageRenderer, layout::LayoutInfo};
 
 #[derive(Debug)]
 pub struct Context {
@@ -55,8 +55,8 @@ impl Context {
         println!("{:#?}", self);
     }
 
-    pub fn render(&self, builder: &mut SceneBuilder) {
-        self.renderer.render(self.viewport, &self.document.layoutify(self.viewport).children, builder, 100.);
+    pub fn render(&mut self, builder: &mut SceneBuilder) {
+        self.renderer.render(self.viewport, &self.document.children, builder, 100.);
     }
 }
 
@@ -77,5 +77,9 @@ impl Viewport {
     pub fn resize(&mut self, width: usize, height: usize) {
         self.width = width;
         self.height = height;
+    }
+
+    pub fn into_layout(&self) -> LayoutInfo {
+        LayoutInfo { x: 0., y: 0., width: self.width as f64, height: self.height as f64, ..Default::default() }
     }
 }

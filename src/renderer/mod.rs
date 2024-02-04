@@ -1,24 +1,19 @@
 use vello::{SceneBuilder, kurbo::{Affine, Shape, Rect, Stroke, Point}, peniko::{BrushRef, Color, Gradient, ColorStop}};
 
-use crate::{context::Viewport, dom::Node, parser::css::{CSSValue, properties::Colour, Numeric}, layout::LayoutNode};
+use crate::{context::Viewport, dom::{Node, Element}, parser::css::{CSSValue, properties::Colour, Numeric}};
 
 #[derive(Debug, Default)]
 pub struct PageRenderer {
-
+    top_offset: f64,
+    left_offset: f64,
+    right_offset: f64
 }
 
 impl PageRenderer {
-    pub fn render(&self, viewport: Viewport, nodes: &Vec<LayoutNode>, builder: &mut SceneBuilder, last_width: f64) {
-        for node in nodes.iter().rev() {
-            if let Some(el) = &node.element {
-                let color = if let CSSValue::Value(c) = el.css.background_color {
-                    c.real
-                } else {
-                    Colour::default().real
-                };
-                builder.fill(vello::peniko::Fill::NonZero, Affine::IDENTITY, BrushRef::Solid(Color::rgb8(color.red, color.green, color.blue)), Some(Affine::IDENTITY), &Rect::new(0., 0., node.absolute_width as f64, node.absolute_height as f64));
-            }
-            self.render(viewport, &node.children, builder, last_width / 2.);
-        }
+    pub fn render(&mut self, viewport: Viewport, nodes: &Vec<Node>, builder: &mut SceneBuilder, last_width: f64) {
+        self.top_offset = 0.;
+        self.render_internal(viewport, nodes, builder, last_width);
+    }
+    fn render_internal(&mut self, viewport: Viewport, nodes: &Vec<Node>, builder: &mut SceneBuilder, last_width: f64) {
     } 
 }

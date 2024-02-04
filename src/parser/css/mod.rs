@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::util::approx_eq;
 
-use self::properties::{Colour, Property, Display, FontSize, TextAlign, Dimensionality, Spacing};
+use self::properties::{Colour, Property, Display, FontSize, TextAlign, Dimensionality};
 
 use super::Char;
 
@@ -713,14 +713,14 @@ impl DeclarationBuilder {
             "background-color" => DeclarationKind::BackgroundColor(Colour::from_components(self.value)),
             "width" => DeclarationKind::Width(Dimensionality::from_components(self.value)),
             "height" => DeclarationKind::Height(Dimensionality::from_components(self.value)),
-            "padding-top" => DeclarationKind::PaddingTop(Spacing::from_components(self.value)),
-            "padding-bottom" => DeclarationKind::PaddingBottom(Spacing::from_components(self.value)),
-            "padding-left" => DeclarationKind::PaddingLeft(Spacing::from_components(self.value)),
-            "padding-right" => DeclarationKind::PaddingRight(Spacing::from_components(self.value)),
-            "margin-top" => DeclarationKind::MarginTop(Spacing::from_components(self.value)),
-            "margin-bottom" => DeclarationKind::MarginBottom(Spacing::from_components(self.value)),
-            "margin-left" => DeclarationKind::MarginLeft(Spacing::from_components(self.value)),
-            "margin-right" => DeclarationKind::MarginRight(Spacing::from_components(self.value)),
+            "padding-top" => DeclarationKind::PaddingTop(Dimensionality::from_components(self.value)),
+            "padding-bottom" => DeclarationKind::PaddingBottom(Dimensionality::from_components(self.value)),
+            "padding-left" => DeclarationKind::PaddingLeft(Dimensionality::from_components(self.value)),
+            "padding-right" => DeclarationKind::PaddingRight(Dimensionality::from_components(self.value)),
+            "margin-top" => DeclarationKind::MarginTop(Dimensionality::from_components(self.value)),
+            "margin-bottom" => DeclarationKind::MarginBottom(Dimensionality::from_components(self.value)),
+            "margin-left" => DeclarationKind::MarginLeft(Dimensionality::from_components(self.value)),
+            "margin-right" => DeclarationKind::MarginRight(Dimensionality::from_components(self.value)),
             _ => DeclarationKind::Unknown(self.kind, self.value),
         };
         Ok(Declaration { important: false, kind, level: self.level })
@@ -775,14 +775,14 @@ pub enum DeclarationKind {
     BackgroundColor(CSSValue<Colour>),
     Width(CSSValue<Dimensionality>),
     Height(CSSValue<Dimensionality>),
-    PaddingTop(CSSValue<Spacing>),
-    PaddingBottom(CSSValue<Spacing>),
-    PaddingLeft(CSSValue<Spacing>),
-    PaddingRight(CSSValue<Spacing>),
-    MarginTop(CSSValue<Spacing>),
-    MarginBottom(CSSValue<Spacing>),
-    MarginLeft(CSSValue<Spacing>),
-    MarginRight(CSSValue<Spacing>), 
+    PaddingTop(CSSValue<Dimensionality>),
+    PaddingBottom(CSSValue<Dimensionality>),
+    PaddingLeft(CSSValue<Dimensionality>),
+    PaddingRight(CSSValue<Dimensionality>),
+    MarginTop(CSSValue<Dimensionality>),
+    MarginBottom(CSSValue<Dimensionality>),
+    MarginLeft(CSSValue<Dimensionality>),
+    MarginRight(CSSValue<Dimensionality>), 
 }
 
 #[derive(Default, Debug, Clone)]
@@ -794,14 +794,14 @@ pub struct CSSProps {
     pub background_color: CSSValue<Colour>,
     pub width: CSSValue<Dimensionality>,
     pub height: CSSValue<Dimensionality>,
-    pub padding_top: CSSValue<Spacing>,
-    pub padding_bottom: CSSValue<Spacing>,
-    pub padding_left: CSSValue<Spacing>,
-    pub padding_right: CSSValue<Spacing>,
-    pub margin_top: CSSValue<Spacing>,
-    pub margin_bottom: CSSValue<Spacing>,
-    pub margin_left: CSSValue<Spacing>,
-    pub margin_right: CSSValue<Spacing>,
+    pub padding_top: CSSValue<Dimensionality>,
+    pub padding_bottom: CSSValue<Dimensionality>,
+    pub padding_left: CSSValue<Dimensionality>,
+    pub padding_right: CSSValue<Dimensionality>,
+    pub margin_top: CSSValue<Dimensionality>,
+    pub margin_bottom: CSSValue<Dimensionality>,
+    pub margin_left: CSSValue<Dimensionality>,
+    pub margin_right: CSSValue<Dimensionality>,
 }
 
 #[derive(Debug, Clone)]
@@ -901,6 +901,19 @@ pub enum CSSSource {
 pub enum Numeric {
     Integer(i32),
     Number(f32),
+}
+
+impl Numeric {
+    pub fn unwrap_f64(&self) -> f64 { // will continue implementing these as i need them.
+        match self {
+            Self::Integer(i) => {
+                i as f64
+            },
+            Self::Number(f) => {
+                f as f64
+            }
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone)]

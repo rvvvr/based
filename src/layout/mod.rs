@@ -1,12 +1,8 @@
 use std::process::Command;
 use std::io::{prelude::*, self};
+use crate::parser::css::properties::{Display, DisplayOutside};
 use crate::{dom::{Element, Document, Node, DOMCoordinate}, context::Viewport, parser::css::{CSSProps, CSSValue, properties::Dimensionality, CSSNumber, Numeric, Unit}};
 
-#[derive(Default, Debug)]
-pub struct Layoutifier {
-    parent_stack: Vec<LayoutNode> //probably worth making a `LayoutInfo` type that holds everything i
-                                //need while building the layout but this is fine for now...
-}
 //three billion million trees to represent the same document is a little redundantge maybe...
 fn pause() {
     let mut stdin = io::stdin();
@@ -20,130 +16,245 @@ fn pause() {
     let _ = stdin.read(&mut [0u8]).unwrap();
 }
 
-impl Layoutifier {
-    pub fn layoutify(&mut self, viewport: Viewport, docment: &Document) -> LayoutNode {
-        let mut root_node = LayoutNode {
-            element: None,
-            absolute_width: viewport.width,
-            absolute_height: viewport.height,
-            children: Vec::new(),
-        };
-        self.parent_stack.push(root_node.clone());
-        for node in &docment.children {
-            if let Node::Element(el) = node {
-                if el.tag_name == "head" { continue; } // each element should have it's own type
-                                                       // with some sort of defaulted "Layoutible"
-                                                       // field but for now this is finege..
-                root_node.children.extend(self.layoutify_recursive(&el.children));
+impl Element {
+    pub fn layout(&mut self, container: LayoutInfo) {
+        if let CSSValue::Value(display) = self.css.display {
+            match display.outside {
+                DisplayOutside::Block => self.layout_block(container),
+                a => unimplemented!("{:?}", a)
             }
         }
-        root_node
     }
 
-    fn layoutify_recursive(&mut self, nodes: &Vec<Node>) -> Vec<LayoutNode> {
-        let mut out = Vec::with_capacity(nodes.len());
-        for node in nodes {
-            if let Node::Element(el) = node {
-                if el.tag_name == "head" {continue;}
-                let mut n = LayoutNode { 
-                    element: Some(ChildlessElement::from(el)), 
-                    absolute_width: self.compute_dimension(true, &el.css.width),
-                    absolute_height: self.compute_dimension(false, &el.css.height), 
-                    children: Vec::new(),
-                };
-                self.parent_stack.push(n.clone());
-                n.children.extend(self.layoutify_recursive(&el.children));
-                out.push(n);
-                self.parent_stack.pop();
-            }
+    fn layout_block(&mut self, container: LayoutInfo) {
+        self.calculate_width_block(container);
+        self.calculate_pos_block(container);
+        self.go_children();
+        self.calculate_height_block(container);
+    }
+
+    fn calculate_width_block(&mut self, container: LayoutInfo) {
+        let mut width = self.unwrap_widthwise_dimension(self.css.width, container);
+
+        let mut margin_left = self.unwrap_widthwise_dimension(self.css.margin_left, container);
+        let mut margin_right = self.unwrap_widthwise_dimension(self.css.margin_right, container);
+
+        //TODO: let border_left = 
+        //TODO: let border_right =
+
+        let padding_left = self.unwrap_widthwise_dimension(self.css.padding_left, container);
+        let padding_right = self.unwrap_widthwise_dimension(self.css.padding_right, container);
+
+        let total_width = margin_left.v() + /*border_left +*/ padding_left.v() + width.v() + padding_right.v() + /*border_right +*/ margin_right.v();
+
+        if !matches!(width, NearlyExactDimension::Auto) && total_width > container.width {
+            margin_left = NearlyExactDimension::Value(0.);
+            margin_right = NearlyExactDimension::Value(0.);
         }
-        out
-    }
 
-    fn compute_dimension(&self, width: bool, dimension: &CSSValue<Dimensionality>) -> usize {
-        if matches!(dimension, CSSValue::Inherit | CSSValue::Initial) {
-            if width {
-                self.parent_stack.last().unwrap().absolute_width
-            } else {
-                self.parent_stack.last().unwrap().absolute_height
-            }
-        } else if let CSSValue::Value(v) = dimension {
-            match v.value {
-                CSSNumber::Number(n) => {
-                    match n {
-                        Numeric::Number(f) => {
-                            f as usize
-                        },
-                        Numeric::Integer(i) => {
-                            i as usize
-                        },
-                    }
+        let underflow = container.width - total_width;
+        {
+            use NearlyExactDimension::*;
+            match (width, margin_left, margin_right) {
+                (Value(_), Value(_), Value(ref mut v)) => {
+                    //TODO: Check direction property.
+                    *v += underflow;
                 },
-                CSSNumber::Percentage(n) => {
-                    let percent = match n {
-                        Numeric::Number(f) => {
-                            f / 100.
-                        },
-                        Numeric::Integer(i) => {
-                            (i as f32) / 100.
-                        },
-                    };
-                    if width {
-                        ((self.parent_stack.last().unwrap().absolute_width as f32) * percent) as usize
+                (Value(_), Auto, Value(_)) => {
+                    margin_left = NearlyExactDimension::Value(underflow);
+                },
+                (Value(_), Value(_), Auto) => {
+                    margin_right = NearlyExactDimension::Value(underflow);
+                }
+                (Auto, ..) => {
+                    if let Auto = margin_left {
+                        margin_left = NearlyExactDimension::Value(0.);
+                    }
+                    if let Auto = margin_right {
+                        margin_right = NearlyExactDimension::Value(0.);
+                    }
+
+                    if underflow >= 0. {
+                        width = NearlyExactDimension::Value(underflow);
                     } else {
-                        ((self.parent_stack.last().unwrap().absolute_height as f32) * percent) as usize
+                        width = NearlyExactDimension::Value(0.);
+                        margin_right = NearlyExactDimension::Value(margin_right.v() + underflow);
                     }
-                },
-                CSSNumber::Unit(n, u) => {
-                    match u {
-                        Unit::Px => {
-                            match n {
-                                Numeric::Number(f) => {
-                                    f as usize
-                                },
-                                Numeric::Integer(i) => {
-                                    i as usize
-                                },
-                            }
-                        },
-                        a => unimplemented!("{:?}", a),
-                    }
-                },
+                }
+
+                (Value(_), Auto, Auto) => {
+                    margin_left = NearlyExactDimension::Value(underflow / 2.);
+                    margin_right = NearlyExactDimension::Value(underflow / 2.);
+                }
             }
-        } else {
-            unreachable!()
+        }
+
+        self.layout_info.width = width.v();
+        self.layout_info.padding.1 = padding_left.v();
+        self.layout_info.padding.2 = padding_right.v();
+        self.layout_info.margin.1 = margin_left.v();
+        self.layout_info.margin.2 = margin_right.v();
+        //TODO: set border
+    }
+
+    fn calculate_pos_block(&mut self, container: LayoutInfo) {
+        self.layout_info.margin.0 = self.unwrap_heightwise_dimension(self.css.margin_top, container).v();
+        self.layout_info.margin.3 = self.unwrap_heightwise_dimension(self.css.margin_bottom, container).v();
+
+        //TODO: border
+        self.layout_info.padding.0 = self.unwrap_heightwise_dimension(self.css.padding_top, container).v();
+        self.layout_info.padding.3 = self.unwrap_heightwise_dimension(self.css.padding_bottom, container).v();
+
+        self.layout_info.x = container.x + self.layout_info.margin.1 + /*self.layout_info.border.1 +*/ self.layout_info.padding.1;
+        self.layout_info.y = container.height + container.y + self.layout_info.margin.0 + /*self.layout_info.border.0 +*/ self.layout_info.padding.0;
+    }
+
+    fn go_children(&mut self) {
+        for child in &mut self.children {
+            if let Node::Element(el) = child {
+                el.layout(self.layout_info);
+                self.layout_info.height += el.layout_info.margin.0 + /*el.layout_info.border.0 +*/ el.layout_info.padding.0 + el.layout_info.height
+                    + el.layout_info.padding.3 + /*el.layout_info.border.3 +*/ el.layout_info.padding.3;
+            }
+        }
+    }
+
+    fn calculate_height_block(&mut self, container: LayoutInfo) {
+        let height = match self.css.height {
+            CSSValue::Value(width) => {
+                match width {
+                    Dimensionality::Auto => {
+                        NearlyExactDimension::Auto
+                    },
+                    Dimensionality::Real(v) => {
+                        match v {
+                            CSSNumber::Unit(v, u) => {
+                                match u {
+                                    Unit::Px => {
+                                        NearlyExactDimension::Value(v.unwrap_f64())
+                                    },
+                                    a => unimplemented!("{:?}", a),
+                                }
+                            }
+                            CSSNumber::Number(v) => {
+                                NearlyExactDimension::Value(v.unwrap_f64())
+                            }
+                            CSSNumber::Percentage(v) => {
+                                NearlyExactDimension::Auto
+                            }
+                        }
+                    }
+                }
+            },
+            CSSValue::Inherit => {
+                unreachable!()
+            },
+            CSSValue::Initial => {
+                NearlyExactDimension::Auto
+            }
+        };
+        if let NearlyExactDimension::Value(v) = height {
+            self.layout_info.height = v;
+        }
+    }
+
+    fn unwrap_widthwise_dimension(&self, dimension: CSSValue<Dimensionality>, container: LayoutInfo) -> NearlyExactDimension {
+        match dimension {
+            CSSValue::Value(width) => {
+                match width {
+                    Dimensionality::Auto => {
+                        NearlyExactDimension::Auto
+                    },
+                    Dimensionality::Real(v) => {
+                        match v {
+                            CSSNumber::Unit(v, u) => {
+                                match u {
+                                    Unit::Px => {
+                                        NearlyExactDimension::Value(v.unwrap_f64())
+                                    },
+                                    a => unimplemented!("{:?}", a),
+                                }
+                            }
+                            CSSNumber::Number(v) => {
+                                NearlyExactDimension::Value(v.unwrap_f64())
+                            }
+                            CSSNumber::Percentage(v) => {
+                                NearlyExactDimension::Value((container.width) * (v.unwrap_f64() / 100.))
+                            }
+                        }
+                    }
+                }
+            },
+            CSSValue::Inherit => {
+                unreachable!()
+            },
+            CSSValue::Initial => {
+                NearlyExactDimension::Auto
+            }
+        }
+    }
+
+    fn unwrap_heightwise_dimension(&self, dimension: CSSValue<Dimensionality>, container: LayoutInfo) -> NearlyExactDimension {
+        match dimension {
+            CSSValue::Value(height) => {
+                match height {
+                    Dimensionality::Auto => {
+                        NearlyExactDimension::Auto
+                    },
+                    Dimensionality::Real(v) => {
+                        match v {
+                            CSSNumber::Unit(v, u) => {
+                                match u {
+                                    Unit::Px => {
+                                        NearlyExactDimension::Value(v.unwrap_f64())
+                                    },
+                                    a => unimplemented!("{:?}", a),
+                                }
+                            }
+                            CSSNumber::Number(v) => {
+                                NearlyExactDimension::Value(v.unwrap_f64())
+                            }
+                            CSSNumber::Percentage(v) => {
+                                NearlyExactDimension::Value((container.height) * (v.unwrap_f64() / 100.))
+                            }
+                        }
+                    }
+                }
+            },
+            CSSValue::Inherit => {
+                unreachable!()
+            },
+            CSSValue::Initial => {
+                NearlyExactDimension::Auto
+            }
         }
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct LayoutNode {
-    pub element: Option<ChildlessElement>, //could be a "phantom" box for combining display modes
-                                           //or to act as the root node
-    pub absolute_width: usize,
-    pub absolute_height: usize,
-    pub absolute_padding: (usize, usize, usize, usize),
-    pub absolute_margin: (usize, usize, usize, usize), //top, bottom, left, right
-    pub children: Vec<LayoutNode>,
+#[derive(Default, Copy, Clone, Debug)]
+pub enum NearlyExactDimension {
+    #[default]
+    Auto,
+    Value(f64),
 }
 
-#[derive(Clone, Debug)]
-pub struct ChildlessElement {
-    pub tag_name: String,
-    pub data: String,
-    pub coordinate: DOMCoordinate,
-    pub css: CSSProps,
-    pub attributes: Vec<(String, String)>,
-}
-
-impl From<&Element> for ChildlessElement {
-    fn from(value: &Element) -> Self {
-        Self {
-            tag_name: value.tag_name.clone(),
-            css: value.css.clone(),
-            coordinate: value.coordinate.clone(),
-            data: value.data.clone(),
-            attributes: value.attributes.clone(),
+impl NearlyExactDimension {
+    pub fn v(&self) -> f64 {
+        match self {
+            Self::Value(v) => v,
+            Self::Auto => 0.,
         }
     }
+}
+
+
+#[derive(Clone, Debug, Default)]
+pub struct LayoutInfo { // renderer's job should be to render, not figure out the place on the
+                        // page. my bad on the last impl.
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub margin: (f64, f64, f64, f64), //top, left, right, bottom
+    pub padding: (f64, f64, f64, f64),
 }

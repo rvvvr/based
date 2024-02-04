@@ -25,7 +25,7 @@ impl Colour {
     pub const YELLOW: Colour =      Colour::new(0xFF, 0xFF, 0x00, 0xFF);
     pub const OLIVE: Colour =       Colour::new(0x80, 0x80, 0x00, 0xFF);
     pub const PURPLE: Colour =      Colour::new(0x80, 0x00, 0x80, 0xFF);
-    pub const FUCHIA: Colour =      Colour::new(0xFF, 0x00, 0xFF, 0xFF);
+    pub const FUCHSIA: Colour =     Colour::new(0xFF, 0x00, 0xFF, 0xFF);
     pub const WHITE: Colour =       Colour::new(0xFF, 0xFF, 0xFF, 0xFF);
     pub const LIME: Colour =        Colour::new(0x00, 0xFF, 0x00, 0xFF);
     pub const GREEN: Colour =       Colour::new(0x00, 0x80, 0x00, 0xFF);
@@ -50,7 +50,7 @@ impl Property for Colour {
                 "yellow" =>     Self::YELLOW,
                 "olive" =>      Self::OLIVE,
                 "purple" =>     Self::PURPLE,
-                "fuchia" =>     Self::FUCHIA,
+                "fuchsia" =>    Self::FUCHSIA,
                 "white" =>      Self::WHITE,
                 "lime" =>       Self::LIME,
                 "green" =>      Self::GREEN,
@@ -71,8 +71,8 @@ impl Property for Colour {
 
 #[derive(Debug, Clone, Default, Copy)]
 pub struct Display {
-    outside: DisplayOutside,
-    inside: DisplayInside,
+    pub outside: DisplayOutside,
+    pub inside: DisplayInside,
 }
 
 impl Display {
@@ -107,7 +107,7 @@ impl Property for Display {
                     "inline" =>             Self::INLINE,
                     "inline-block" =>       Self::INLINE_BLOCK,
                     "run-in" =>             Self::RUN_IN,
-                    _ => return CSSValue::default(),
+                    _ => unimplemented!(),
                 }
             } else {
                 return CSSValue::default();
@@ -167,15 +167,15 @@ impl Property for FontSize {
 
 
 #[derive(Debug, Clone, Default, Copy)]
-pub struct Dimensionality { 
-    pub value: CSSNumber,
+pub enum Dimensionality { 
+    #[default]
+    Auto,
+    Real(CSSNumber),
 }
 
 impl Dimensionality {
     pub const fn new(value: CSSNumber) -> Self {
-        Self {
-            value
-        }
+        Self::Real(value)
     }
 }
 
@@ -183,9 +183,10 @@ impl Property for Dimensionality {
     fn from_components(components: Vec<Component>) -> CSSValue<Self>
             where Self: Sized {
         if let Some(Component::Token(CSSToken::Number(n))) = components.get(0) {
-            CSSValue::Value(Self {
-                value: n.clone()
-            })
+            CSSValue::Value(Self::Real(n.clone()))
+        } else if let Some(Component::Token(CSSToken::Ident(..))) = components.get(0) {
+            CSSValue::Value(Self::Auto) //tbf i should actually check if it's auto but for now it's
+                                        //probably fine..
         } else {
             unimplemented!();
         }
@@ -215,33 +216,6 @@ impl Property for TextAlign {
             })
         } else {
             CSSValue::default()
-        }
-    }
-}
-//these could all be squashed into a macro
-
-#[derive(Debug, Clone, Copy)]
-pub struct Spacing {
-    value: CSSNumber
-}
-
-impl Spacing {
-    pub const fn new(value: CSSNumber) -> Self {
-        Self {
-            value
-        }
-    }
-}
-
-impl Property for Spacing {
-    fn from_components(components: Vec<Component>) -> CSSValue<Self>
-            where Self: Sized {
-        if let Some(Component::Token(CSSToken::Number(n))) = components.get(0) {
-            CSSValue::Value(Self {
-                value: n.clone()
-            })
-        } else {
-            unimplemented!();
         }
     }
 }
