@@ -907,10 +907,10 @@ impl Numeric {
     pub fn unwrap_f64(&self) -> f64 { // will continue implementing these as i need them.
         match self {
             Self::Integer(i) => {
-                i as f64
+                *i as f64
             },
             Self::Number(f) => {
-                f as f64
+                *f as f64
             }
         }
     }

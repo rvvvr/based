@@ -49,12 +49,13 @@ impl Document {
         Cascader::default().cascade(&mut self.children, &self.style, viewport);
     }
 
-    pub fn layoutify(&self, viewport: Viewport) {
+    pub fn layoutify(&mut self, viewport: Viewport) {
         for child in &mut self.children {
             if let Node::Element(el) = child {
-                el.layout(viewport.into_layout())
+                el.layout(Viewport::default().into_layout())
             }
         }
+        println!("{:#?}", self);
     }
 }
 

@@ -18,6 +18,7 @@ fn pause() {
 
 impl Element {
     pub fn layout(&mut self, container: LayoutInfo) {
+        if self.tag_name == "head" {return;}
         if let CSSValue::Value(display) = self.css.display {
             match display.outside {
                 DisplayOutside::Block => self.layout_block(container),
@@ -34,16 +35,16 @@ impl Element {
     }
 
     fn calculate_width_block(&mut self, container: LayoutInfo) {
-        let mut width = self.unwrap_widthwise_dimension(self.css.width, container);
+        let mut width = self.unwrap_widthwise_dimension(&self.css.width, container);
 
-        let mut margin_left = self.unwrap_widthwise_dimension(self.css.margin_left, container);
-        let mut margin_right = self.unwrap_widthwise_dimension(self.css.margin_right, container);
+        let mut margin_left = self.unwrap_widthwise_dimension(&self.css.margin_left, container);
+        let mut margin_right = self.unwrap_widthwise_dimension(&self.css.margin_right, container);
 
         //TODO: let border_left = 
         //TODO: let border_right =
 
-        let padding_left = self.unwrap_widthwise_dimension(self.css.padding_left, container);
-        let padding_right = self.unwrap_widthwise_dimension(self.css.padding_right, container);
+        let padding_left = self.unwrap_widthwise_dimension(&self.css.padding_left, container);
+        let padding_right = self.unwrap_widthwise_dimension(&self.css.padding_right, container);
 
         let total_width = margin_left.v() + /*border_left +*/ padding_left.v() + width.v() + padding_right.v() + /*border_right +*/ margin_right.v();
 
@@ -98,22 +99,22 @@ impl Element {
     }
 
     fn calculate_pos_block(&mut self, container: LayoutInfo) {
-        self.layout_info.margin.0 = self.unwrap_heightwise_dimension(self.css.margin_top, container).v();
-        self.layout_info.margin.3 = self.unwrap_heightwise_dimension(self.css.margin_bottom, container).v();
+        self.layout_info.margin.0 = self.unwrap_heightwise_dimension(&self.css.margin_top, container).v();
+        self.layout_info.margin.3 = self.unwrap_heightwise_dimension(&self.css.margin_bottom, container).v();
 
         //TODO: border
-        self.layout_info.padding.0 = self.unwrap_heightwise_dimension(self.css.padding_top, container).v();
-        self.layout_info.padding.3 = self.unwrap_heightwise_dimension(self.css.padding_bottom, container).v();
+        self.layout_info.padding.0 = self.unwrap_heightwise_dimension(&self.css.padding_top, container).v();
+        self.layout_info.padding.3 = self.unwrap_heightwise_dimension(&self.css.padding_bottom, container).v();
 
         self.layout_info.x = container.x + self.layout_info.margin.1 + /*self.layout_info.border.1 +*/ self.layout_info.padding.1;
-        self.layout_info.y = container.height + container.y + self.layout_info.margin.0 + /*self.layout_info.border.0 +*/ self.layout_info.padding.0;
+        self.layout_info.y = container.content_height + container.y + self.layout_info.margin.0 + /*self.layout_info.border.0 +*/ self.layout_info.padding.0;
     }
 
     fn go_children(&mut self) {
         for child in &mut self.children {
             if let Node::Element(el) = child {
                 el.layout(self.layout_info);
-                self.layout_info.height += el.layout_info.margin.0 + /*el.layout_info.border.0 +*/ el.layout_info.padding.0 + el.layout_info.height
+                self.layout_info.content_height += el.layout_info.margin.0 + /*el.layout_info.border.0 +*/ el.layout_info.padding.0 + el.layout_info.height
                     + el.layout_info.padding.3 + /*el.layout_info.border.3 +*/ el.layout_info.padding.3;
             }
         }
@@ -155,10 +156,12 @@ impl Element {
         };
         if let NearlyExactDimension::Value(v) = height {
             self.layout_info.height = v;
+        } else {
+            self.layout_info.height = self.layout_info.content_height;
         }
     }
 
-    fn unwrap_widthwise_dimension(&self, dimension: CSSValue<Dimensionality>, container: LayoutInfo) -> NearlyExactDimension {
+    fn unwrap_widthwise_dimension(&self, dimension: &CSSValue<Dimensionality>, container: LayoutInfo) -> NearlyExactDimension {
         match dimension {
             CSSValue::Value(width) => {
                 match width {
@@ -194,7 +197,7 @@ impl Element {
         }
     }
 
-    fn unwrap_heightwise_dimension(&self, dimension: CSSValue<Dimensionality>, container: LayoutInfo) -> NearlyExactDimension {
+    fn unwrap_heightwise_dimension(&self, dimension: &CSSValue<Dimensionality>, container: LayoutInfo) -> NearlyExactDimension {
         match dimension {
             CSSValue::Value(height) => {
                 match height {
@@ -241,20 +244,32 @@ pub enum NearlyExactDimension {
 impl NearlyExactDimension {
     pub fn v(&self) -> f64 {
         match self {
-            Self::Value(v) => v,
+            Self::Value(v) => *v,
             Self::Auto => 0.,
         }
     }
 }
 
+pub enum BuildingHeight {
+    WaitingForContents,
+    Value(f64),
+}
 
-#[derive(Clone, Debug, Default)]
+
+#[derive(Clone, Copy, Debug, Default)]
 pub struct LayoutInfo { // renderer's job should be to render, not figure out the place on the
                         // page. my bad on the last impl.
     pub x: f64,
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    pub content_height: f64,
     pub margin: (f64, f64, f64, f64), //top, left, right, bottom
     pub padding: (f64, f64, f64, f64),
+}
+
+impl LayoutInfo {
+    pub fn expand(&self, expand: (f64, f64, f64, f64)) -> LayoutInfo {
+        LayoutInfo { x: self.x - expand.1, y: self.y - expand.0, width: self.width + expand.1 + expand.2, height: self.height + expand.0 + expand.3, content_height: self.content_height, margin: self.margin, padding: self.padding }
+    }
 }

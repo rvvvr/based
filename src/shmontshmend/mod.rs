@@ -28,6 +28,7 @@ impl Frontend {
             antialiasing_support: AaSupport::all(),
         };
         let mut renderer = Renderer::new(&dev_handle.device, render_options).unwrap();
+        context.layoutify();
 
         let mut scene = Scene::new();
         let mut context_frag = SceneFragment::new();

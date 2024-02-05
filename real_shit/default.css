@@ -1,3 +1,4 @@
+
 /* to be massively expanded on */
 * {
     font-size: 12px;
@@ -15,6 +16,11 @@
     padding-bottom: 0px;
     padding-left: 0px;
     padding-right: 0px;
+}
+
+html {
+    width: 1080px;
+    height: 720px;
 }
 
 html, body {
