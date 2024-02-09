@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use font_kit::font::Font;
-use fonttools::font;
+use read_fonts::{FontRef, TableProvider};
 
 use crate::parser::css::{CSSProps, properties::FontFamily, CSSValue};
 
@@ -38,34 +38,32 @@ impl<'a> TextLayoutifier<'a> {
 
 	let font_data = font.copy_font_data().unwrap();
 
-	let font_data_cursor = Cursor::new(font_data.as_slice());
-	let mut ot_data = font::load(font_data_cursor).unwrap();
-	let head = ot_data.tables.head().unwrap().unwrap();
-	let cmap = ot_data.tables.cmap().expect("error reading").expect("no cmap table (crazy)");
-	let mapping = cmap.get_best_mapping().unwrap();
+	let ot_data = FontRef::new(font_data.as_slice()).unwrap();
+	let head = ot_data.head().unwrap();
+	let cmap = ot_data.cmap().expect("error reading");
 
 	println!("{:?}", self.contents.chars().collect::<Vec<_>>());
 
-	let glyph_ids = self.contents.chars().map(|v| mapping.get(&(v as u32))).filter_map(|v| v);
+	let glyph_ids = self.contents.chars().map(|v| cmap.map_codepoint(v)).filter_map(|v| v);
 
-	let htmx = ot_data.tables.hmtx().unwrap().unwrap();
+	let htmx = ot_data.hmtx().unwrap();
 
 	let font_size = self.unwrap_font_size();
 
-	let font_unit_scale_factor = (font_size * self.scale_factor) / head.unitsPerEm as f64;
+	let font_unit_scale_factor = (font_size * self.scale_factor) / head.units_per_em() as f64;
 
 	let mut glyphs = Vec::new();
 	let mut x_offset: f64 = self.container.x;
 	for id in glyph_ids {
 	    glyphs.push(LaidoutGlyph {
 		x: x_offset,
-		y: self.container.y,
+		y: self.container.y + head.y_max() as f64 * font_unit_scale_factor,
 		glyph: FontGlyph {
-		    id: *id,
+		    id: id.to_u16(),
 		},
 	    });
-	    let horizontal_metrics = htmx.metrics.get(*id as usize).unwrap();
-	    x_offset += (horizontal_metrics.advanceWidth as f64 * font_unit_scale_factor) + (horizontal_metrics.lsb as f64 * font_unit_scale_factor);
+	    let horizontal_metrics = htmx.h_metrics().get(id.to_u16() as usize).unwrap();
+	    x_offset += (horizontal_metrics.advance.get() as f64 * font_unit_scale_factor) + (horizontal_metrics.side_bearing.get() as f64 * font_unit_scale_factor);
 	}
 	
 	LaidoutText {
