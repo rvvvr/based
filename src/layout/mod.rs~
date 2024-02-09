@@ -1,14 +1,9 @@
 use std::process::Command;
 use std::io::{prelude::*, self};
-use crate::parser::css::properties::{Display, DisplayOutside, FontFamily};
+use crate::parser::css::properties::{Display, DisplayOutside};
 use crate::{dom::{Element, Document, Node, DOMCoordinate}, context::Viewport, parser::css::{CSSProps, CSSValue, properties::Dimensionality, CSSNumber, Numeric, Unit}};
-use font_kit::font::Font;
 
-use self::text::TextLayoutifier;
-
-pub mod text;
-
-//three billion million trees to represent the same document is a little redundantge maybe... three billion trees no longer!!
+//three billion million trees to represent the same document is a little redundantge maybe...
 fn pause() {
     let mut stdin = io::stdin();
     let mut stdout = io::stdout();
@@ -22,20 +17,20 @@ fn pause() {
 }
 
 impl Element {
-    pub fn layout(&mut self, container: LayoutInfo, scale_factor: f64) {
+    pub fn layout(&mut self, container: LayoutInfo) {
         if self.tag_name == "head" {return;}
         if let CSSValue::Value(display) = self.css.display {
             match display.outside {
-                DisplayOutside::Block => self.layout_block(container, scale_factor),
+                DisplayOutside::Block => self.layout_block(container),
                 a => unimplemented!("{:?}", a)
             }
         }
     }
 
-    fn layout_block(&mut self, container: LayoutInfo, scale_factor: f64) {
+    fn layout_block(&mut self, container: LayoutInfo) {
         self.calculate_width_block(container);
         self.calculate_pos_block(container);
-        self.go_children(scale_factor);
+        self.go_children();
         self.calculate_height_block(container);
     }
 
@@ -115,18 +110,24 @@ impl Element {
         self.layout_info.y = container.content_height + container.y + self.layout_info.margin.0 + /*self.layout_info.border.0 +*/ self.layout_info.padding.0;
     }
 
-    fn go_children(&mut self, scale_factor: f64) {
+    fn go_children(&mut self) {
         for child in &mut self.children {
             if let Node::Element(el) = child {
-                el.layout(self.layout_info, scale_factor);
+                el.layout(self.layout_info);
                 self.layout_info.content_height += el.layout_info.margin.0 + /*el.layout_info.border.0 +*/ el.layout_info.padding.0 + el.layout_info.height
                     + el.layout_info.padding.3 + /*el.layout_info.border.3 +*/ el.layout_info.padding.3;
             } else if let Node::Text(contents) = child {
-		let text_layoutifier = TextLayoutifier::new(&self.css, &self.layout_info, contents.as_str(), scale_factor);
-		let glyphs = text_layoutifier.lay_it_out();
-		*child = Node::LaidoutText(glyphs);
+		Self::layout_text(self.layout_info, self.css, child);
 	    }
         }
+    }
+
+    fn layout_text(container: LayoutInfo, parent_props: CSSProps, node: &mut Node) {
+	if let Node::Text(contents) = node {
+	    
+	} else {
+	    unreachable!()
+	}
     }
 
     fn calculate_height_block(&mut self, container: LayoutInfo) {

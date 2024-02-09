@@ -1,4 +1,7 @@
 use colours::Rgba;
+use font_kit::{family_name::FamilyName, source::SystemSource, properties::Properties, font::Font};
+
+use crate::parser::html::Token;
 
 use super::{Component, CSSToken, CSSValue, CSSNumber};
 
@@ -141,7 +144,7 @@ pub enum DisplayInside {
 
 #[derive(Debug, Clone, Default, Copy)]
 pub struct FontSize {
-    value: CSSNumber,
+    pub value: CSSNumber,
 }
 
 impl FontSize {
@@ -218,4 +221,55 @@ impl Property for TextAlign {
             CSSValue::default()
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum FontFamily {
+    Unresoved(Vec<String>),
+    Resolved(Font),
+}
+
+impl FontFamily {
+    pub fn resolve(&mut self) {
+	if let Self::Resolved(_) = self {
+	    return;
+	} else if let Self::Unresoved(names) = self {
+	    let mut defined_fonts = names.iter().map(|n| FamilyName::Title(n.clone())).collect::<Vec<_>>();
+	    defined_fonts.push(FamilyName::Monospace); //final fallback.
+	    let font_data = SystemSource::new().select_best_match(defined_fonts.as_slice(), &Properties::new()).unwrap().load().unwrap();
+	    *self = Self::Resolved(font_data);
+	}
+    }
+}
+
+impl Property for FontFamily {
+    fn from_components(components: Vec<Component>) -> CSSValue<Self>
+    where Self: Sized {
+	let mut actual = Vec::new();
+	let mut iter = components.iter();
+	let mut working = String::new();
+	while let Some(c) = iter.next() {
+	    if let Component::Token(t) = c {
+		match t {
+		    CSSToken::Ident(i) => {
+			working.push_str(i.as_str());
+			working.push(' ');
+		    },
+		    CSSToken::Comma => {
+			actual.push(working.clone());
+			working.clear();
+		    },
+		    _ => {},
+		}
+	    }
+	}
+	CSSValue::Value(Self::Unresoved(actual))
+    }
+}
+
+impl Default for FontFamily {
+    fn default() -> Self {
+	Self::Unresoved(Vec::new())
+    }
+
 }

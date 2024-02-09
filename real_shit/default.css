@@ -1,7 +1,8 @@
 
 /* to be massively expanded on */
 * {
-    font-size: 12px;
+    font-size: 12pt;
+    font-family: Fira Code;
     color: blue;
     display: block;
     text-align: center;

@@ -1,6 +1,6 @@
 use crate::{dom::{Node, Element}, parser::css::{Selector, Rule, properties::Dimensionality}, context::Viewport};
 
-use super::{StyleData, Prelude, Declaration, DeclarationKind, Block, CSSValue, properties::{Colour, TextAlign, FontSize, Display}, CSSProps, RuleBuilder, CSSNumber, Unit, Numeric};
+use super::{StyleData, Prelude, Declaration, DeclarationKind, Block, CSSValue, properties::{Colour, TextAlign, FontSize, Display, FontFamily}, CSSProps, RuleBuilder, CSSNumber, Unit, Numeric};
 
 #[derive(Debug, Default)]
 pub struct Cascader {
@@ -170,6 +170,16 @@ impl<'a> Cascader {
                             *v = CSSValue::<Dimensionality>::default();
                         }
                     }
+		    DeclarationKind::FontFamily(ref mut v) => {
+			if let CSSValue::Inherit = v{
+			    *v = self.parent_prop_stack.last().unwrap().font_family.clone();
+			} else if let CSSValue::Initial = v{
+			    *v = CSSValue::<FontFamily>::default();
+			}
+			if let CSSValue::Value(ref mut f) = v {
+			    f.resolve();
+			}
+		    }
                 }
             }
         }
@@ -216,6 +226,7 @@ impl<'a> Cascader {
             DeclarationKind::PaddingBottom(v) => element.css.padding_bottom = v,
             DeclarationKind::PaddingLeft(v) => element.css.padding_left = v,
             DeclarationKind::PaddingRight(v) => element.css.padding_right = v,
+	    DeclarationKind::FontFamily(v) => element.css.font_family = v,
             DeclarationKind::Unknown(_, _) => {},
         }
     }

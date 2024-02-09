@@ -1,5 +1,5 @@
 use url::Url;
-use vello::SceneBuilder;
+use vello::{SceneBuilder, peniko::Font};
 
 use crate::{parser::{html::HTMLParser, css::CSSParser}, dom::Document, renderer::PageRenderer, layout::LayoutInfo};
 
@@ -11,6 +11,7 @@ pub struct Context {
     url: Url,
     viewport: Viewport,
     renderer: PageRenderer,
+    fonts: Vec<Font>,
 }
 
 impl Default for Context {
@@ -21,7 +22,8 @@ impl Default for Context {
             document: Document::default(),
             viewport: Viewport::default(),
             renderer: PageRenderer::default(),
-            url: Url::from_directory_path(std::env::current_dir().unwrap()).unwrap().join("tests/basic.html").unwrap()
+            url: Url::from_directory_path(std::env::current_dir().unwrap()).unwrap().join("tests/basic.html").unwrap(),
+	    fonts: Vec::new(),
         }
     }
 }
@@ -59,8 +61,8 @@ impl Context {
         self.renderer.render(self.viewport, &self.document.children, builder, 100.);
     }
 
-    pub fn layoutify(&mut self) {
-        self.document.layoutify(self.viewport);
+    pub fn layoutify(&mut self, scale_factor: f64) {
+        self.document.layoutify(self.viewport, scale_factor);
     }
 }
 

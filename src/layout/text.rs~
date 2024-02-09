@@ -1,0 +1,67 @@
+use std::io::Cursor;
+
+use crate::parser::css::{CSSProps, properties::FontFamily};
+
+use super::LayoutInfo;
+
+#[derive(Clone, Debug)]
+pub struct TextLayoutifier<'a> {
+    containing_css: &'a CSSProps,
+    container: &'a LayoutInfo,
+    contents: &'a str,
+}
+//my own glyph shaping and text layout engine.
+//why am i writing this myself rather than just bringing in harfbuzz or pango or whatever and calling it a day?
+//same reason i'm writing a browser engine. i dont know how fonts work, but i'd like to. therefore, this module.
+//there's also the added bonus of no complete glyph shaping engine exists in pure rust, and it'd be nice to have one. not that things need to be written in rust to be usable- but it can't hurt. for example- harfbuzz is designed and tested around freetype. this engine is designed and tested around vello. i'd also like to integrate a fully fledged mathematical shaping engine, but that is a stretch goal.
+//this will need to be massively expanded upon and eventually lifted out into its own crate.
+//below is a list of everything yet to be implemented.
+//TODO: unit testsnnn
+//TODO: write direction
+//TODO: non-latin text
+//TODO: rich strings (i.e, multi fonts, italics and bold, different directions (english and arabic in the same string))(maybe unneeded? TBD)
+impl<'a> TextLayoutifier<'a> {
+    pub fn new(containing_css: &'a CSSProps, container: &'a LayoutInfo, contents: &'a str) -> Self {
+	Self {
+	    containing_css,
+	    container,
+	    contents,
+	}
+    }
+
+    pub fn lay_it_out(&self) -> LaidoutText {
+	let font_data = if let FontFamily::Resolved(font) = self.containing_css.font_family {
+	    font.copy_font_data().unwrap()
+	} else {
+	    unreachable!();
+	};
+
+	let font_data_cursor = Cursor::new(font_data);
+
+	LaidoutText {
+	    glyphs: Vec::new(),
+	}
+    }
+}
+
+pub struct LaidoutText {
+    pub glyphs: Vec<LaidoutGlyph>,
+}
+
+impl Iterator for LaidoutText {
+    type Item = LaidoutGlyph;
+
+    fn next(&mut self) -> Option<Self::Item> {
+	None
+    }
+}
+
+pub struct LaidoutGlyph {
+    pub x: f64,
+    pub y: f64,
+    pub glyph: FontGlyph,
+}
+
+pub struct FontGlyph { //will probably jsut become pub type FontGlyph = usize; but for now keeping it as a struct in case i want to store extra data on a glyph.
+    id: usize,
+}

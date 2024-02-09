@@ -12,6 +12,7 @@ pkgs.mkShell rec {
     wgpu-utils
     vulkan-loader
     libxkbcommon
+    fontconfig
   ];
   nativeBuildInputs = with pkgs; [
     pkg-config 

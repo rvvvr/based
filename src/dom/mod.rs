@@ -1,4 +1,4 @@
-use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport, layout::{LayoutInfo}};
+use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport, layout::{LayoutInfo, text::LaidoutText}};
 
 #[derive(Default, Debug)]
 pub struct Document {
@@ -49,13 +49,12 @@ impl Document {
         Cascader::default().cascade(&mut self.children, &self.style, viewport);
     }
 
-    pub fn layoutify(&mut self, viewport: Viewport) {
+    pub fn layoutify(&mut self, viewport: Viewport, scale_factor: f64) {
         for child in &mut self.children {
             if let Node::Element(el) = child {
-                el.layout(Viewport::default().into_layout())
+                el.layout(Viewport::default().into_layout(), scale_factor);
             }
         }
-        println!("{:#?}", self);
     }
 }
 
@@ -158,6 +157,7 @@ pub enum Node {
     },
     Element(Element),
     Text(String),
+    LaidoutText(LaidoutText),
     PhantomBox(Element), //only for layoutge
 }
 
@@ -165,3 +165,4 @@ pub enum Node {
 pub struct DOMCoordinate {
     indices: Vec<usize>,
 }
+
