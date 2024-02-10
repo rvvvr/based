@@ -122,8 +122,9 @@ impl Element {
                 self.layout_info.content_height += el.layout_info.margin.0 + /*el.layout_info.border.0 +*/ el.layout_info.padding.0 + el.layout_info.height
                     + el.layout_info.padding.3 + /*el.layout_info.border.3 +*/ el.layout_info.padding.3;
             } else if let Node::Text(contents) = child {
-		let text_layoutifier = TextLayoutifier::new(&self.css, &self.layout_info, contents.as_str(), scale_factor);
-		let glyphs = text_layoutifier.lay_it_out();
+		let shmeep = self.layout_info.clone();
+		let text_layoutifier = TextLayoutifier::new(&self.css, &shmeep, contents.as_str(), scale_factor);
+		let glyphs = text_layoutifier.lay_it_out(&mut self.layout_info.content_height);
 		*child = Node::LaidoutText(glyphs);
 	    }
         }

@@ -1,7 +1,8 @@
 use std::io::Cursor;
 
 use font_kit::font::Font;
-use read_fonts::{FontRef, TableProvider};
+use read_fonts::{FontRef, TableProvider, types::GlyphId};
+use vello::glyph;
 
 use crate::parser::css::{CSSProps, properties::FontFamily, CSSValue};
 
@@ -29,7 +30,7 @@ impl<'a> TextLayoutifier<'a> {
 	}
     }
 
-    pub fn lay_it_out(&self) -> LaidoutText {
+    pub fn lay_it_out(&self, parent_height: &mut f64) -> LaidoutText {
 	let font = if let CSSValue::Value(FontFamily::Resolved(font)) = &self.containing_css.font_family {
 	    font
 	} else {
@@ -44,8 +45,20 @@ impl<'a> TextLayoutifier<'a> {
 
 	println!("{:?}", self.contents.chars().collect::<Vec<_>>());
 
-	let glyph_ids = self.contents.chars().map(|v| cmap.map_codepoint(v)).filter_map(|v| v);
+	let mut font_glyphs = Vec::new();
 
+	for ch in self.contents.chars() {
+	    let mut glyph = FontGlyph::default();
+	    if ch.is_whitespace() {
+		glyph.breakable = true;
+	    }
+	    //check if newline and set broken.
+	    let gid = cmap.map_codepoint(ch);
+	    if let Some(id) = gid {
+		glyph.id = id.to_u16();
+		font_glyphs.push(glyph);
+	    }
+	}
 	let htmx = ot_data.hmtx().unwrap();
 
 	let font_size = self.unwrap_font_size();
@@ -54,16 +67,22 @@ impl<'a> TextLayoutifier<'a> {
 
 	let mut glyphs = Vec::new();
 	let mut x_offset: f64 = self.container.x;
-	for id in glyph_ids {
+	let mut y_offset: f64 = self.container.y + head.y_max() as f64 * font_unit_scale_factor;
+	*parent_height += head.y_max() as f64 * font_unit_scale_factor;
+	for glyph in font_glyphs {
 	    glyphs.push(LaidoutGlyph {
 		x: x_offset,
-		y: self.container.y + head.y_max() as f64 * font_unit_scale_factor,
-		glyph: FontGlyph {
-		    id: id.to_u16(),
-		},
+		y: y_offset,
+		glyph,
 	    });
-	    let horizontal_metrics = htmx.h_metrics().get(id.to_u16() as usize).unwrap();
+	    let horizontal_metrics = htmx.h_metrics().get(glyph.id as usize).unwrap();
 	    x_offset += (horizontal_metrics.advance.get() as f64 * font_unit_scale_factor) + (horizontal_metrics.side_bearing.get() as f64 * font_unit_scale_factor);
+	    if x_offset > self.container.width {
+		x_offset = self.container.x;
+		y_offset += head.y_max() as f64 * font_unit_scale_factor;
+		*parent_height += head.y_max() as f64 * font_unit_scale_factor;
+
+	    }
 	}
 	
 	LaidoutText {
@@ -104,7 +123,9 @@ pub struct LaidoutGlyph {
     pub glyph: FontGlyph,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct FontGlyph { //will probably jsut become pub type FontGlyph = usize; but for now keeping it as a struct in case i want to store extra data on a glyph.
     pub id: u16,
+    pub broken: bool,
+    pub breakable: bool,
 }
