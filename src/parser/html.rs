@@ -202,7 +202,6 @@ impl HTMLParser {
 
     fn handle_tokens(&mut self, document: &mut Document) -> Result<(), ParserError> {
         self.tokens_available = false;
-        println!("{:#?}", self);
         while let Some(token) = self.emit_buffer.pop_front() {
             match &self.insertion_mode {
                 InsertionMode::Initial => {

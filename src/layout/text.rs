@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use font_kit::font::Font;
-use read_fonts::{FontRef, TableProvider, types::GlyphId};
+use read_fonts::{FontRef, TableProvider, types::GlyphId, tables::hmtx::Hmtx};
 use vello::glyph;
 
 use crate::parser::css::{CSSProps, properties::FontFamily, CSSValue};
@@ -46,8 +46,9 @@ impl<'a> TextLayoutifier<'a> {
 	println!("{:?}", self.contents.chars().collect::<Vec<_>>());
 
 	let mut font_glyphs = Vec::new();
-
-	for ch in self.contents.chars() {
+	
+	//this chain is kinda just a hack to treat the last word as a word ill need to do something more real at some point.
+	for ch in self.contents.chars().chain(std::iter::once(' ')) {
 	    let mut glyph = FontGlyph::default();
 	    if ch.is_whitespace() {
 		glyph.breakable = true;
@@ -59,7 +60,7 @@ impl<'a> TextLayoutifier<'a> {
 		font_glyphs.push(glyph);
 	    }
 	}
-	let htmx = ot_data.hmtx().unwrap();
+	let hmtx = ot_data.hmtx().unwrap();
 
 	let font_size = self.unwrap_font_size();
 
@@ -69,19 +70,26 @@ impl<'a> TextLayoutifier<'a> {
 	let mut x_offset: f64 = self.container.x;
 	let mut y_offset: f64 = self.container.y + head.y_max() as f64 * font_unit_scale_factor;
 	*parent_height += head.y_max() as f64 * font_unit_scale_factor;
+	let mut wordish = Vec::new();
 	for glyph in font_glyphs {
-	    glyphs.push(LaidoutGlyph {
-		x: x_offset,
-		y: y_offset,
-		glyph,
-	    });
-	    let horizontal_metrics = htmx.h_metrics().get(glyph.id as usize).unwrap();
-	    x_offset += (horizontal_metrics.advance.get() as f64 * font_unit_scale_factor) + (horizontal_metrics.side_bearing.get() as f64 * font_unit_scale_factor);
-	    if x_offset > self.container.width {
-		x_offset = self.container.x;
-		y_offset += head.y_max() as f64 * font_unit_scale_factor;
-		*parent_height += head.y_max() as f64 * font_unit_scale_factor;
-
+	    wordish.push(glyph);
+	    if glyph.breakable || glyph.broken {
+		let word_length = self.get_word_length(&wordish, &hmtx, font_unit_scale_factor);
+		if x_offset + word_length >= self.container.x + self.container.width || glyph.broken {
+		    x_offset = self.container.x;
+		    y_offset += head.y_max() as f64 * font_unit_scale_factor;
+		    *parent_height += head.y_max() as f64 * font_unit_scale_factor;
+		}
+		for letter in &wordish {
+		    glyphs.push(LaidoutGlyph {
+			x: x_offset,
+			y: y_offset,
+			glyph: *letter,
+		    });
+		    let h_metrics = hmtx.h_metrics().get(letter.id as usize).expect("no metrics");
+		    x_offset += h_metrics.advance() as f64 * font_unit_scale_factor + h_metrics.side_bearing() as f64 * font_unit_scale_factor;
+		}
+		wordish.clear();
 	    }
 	}
 	
@@ -90,6 +98,15 @@ impl<'a> TextLayoutifier<'a> {
 	    font: font.clone(),
 	    font_size,
 	}
+    }
+
+    fn get_word_length(&self, word: &Vec<FontGlyph>, hmtx: &Hmtx,scale_factor: f64) -> f64 {
+	let mut length = 0.;
+	for letter in word {
+	    let h_metrics = hmtx.h_metrics().get(letter.id as usize).expect("no metrics");
+	    length += h_metrics.advance() as f64 * scale_factor + h_metrics.side_bearing() as f64 * scale_factor;
+	}
+	length
     }
 
     fn unwrap_font_size(&self) -> f64 {

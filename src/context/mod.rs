@@ -54,7 +54,6 @@ impl Context {
         self.css.push_many(self.document.find_css_sources());
         self.document.add_styles(self.css.parse_stylesheets().unwrap());
         self.document.cascade(self.viewport);
-        println!("{:#?}", self);
     }
 
     pub fn render(&mut self, builder: &mut SceneBuilder) {

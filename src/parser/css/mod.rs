@@ -261,7 +261,6 @@ impl CSSTokenizer {
                     do yeet CSSError::UnimplementedCodePoint(a);
                 },
             }
-            println!("{:?}", tokens);
         }
     }
 
@@ -405,13 +404,11 @@ impl CSSTokenizer {
                 Char::Eof => {do yeet CSSError::EOFReached},
             });
         };
-        println!("repr: {:?}", rep);
         while let Char::Char('0'..='9') = self.peek() {
             rep.append_to_integer(match self.consume() {
                 Char::Char(c) => {c},
                 Char::Eof => {do yeet CSSError::EOFReached},
             });
-            println!("repr: {:?}", rep);
         };
         if let Char::Char('.') = self.peek() {
             self.consume();
@@ -420,7 +417,6 @@ impl CSSTokenizer {
                     Char::Char(c) => {c},
                     Char::Eof => {do yeet CSSError::EOFReached},
                 });
-                println!("repr: {:?}", rep);
             }
         }
         if let Char::Char('E' | 'e') = self.peek() {
@@ -430,7 +426,6 @@ impl CSSTokenizer {
                     Char::Char(c) => {c},
                     Char::Eof => {do yeet CSSError::EOFReached},
                 });
-                println!("repr: {:?}", rep);
             }
         }
         Ok(rep.into_numeric()?)
@@ -518,7 +513,6 @@ impl RuleBuilder {
         for component in self.preludes {
             selector.append(component);
         }
-        println!("{:?}", selector);
         let mut declarations: HashMap<Discriminant<DeclarationKind>, Declaration> = HashMap::default();
         for ref mut block in self.blocks {
             declarations.extend(block.parse_as_declarations()?)
