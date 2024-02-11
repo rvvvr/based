@@ -6,18 +6,21 @@ use crate::{context::Viewport, dom::{Node, Element}, parser::css::{CSSValue, pro
 pub struct PageRenderer {}
 
 impl PageRenderer {
-    pub fn render(&mut self, viewport: Viewport, nodes: &Vec<Node>, builder: &mut SceneBuilder, last_width: f64) {
+    pub fn render(&mut self, viewport: Viewport, nodes: &Vec<Node>, builder: &mut SceneBuilder, last_width: f64, render_info: RenderInfo) {
         for node in nodes {
             match node {
                 Node::Element(el) => {
+		    if el.layout_info.y + el.layout_info.height < render_info.scroll_y || el.layout_info.y > render_info.scroll_y + viewport.height as f64 {
+			continue;
+		    }
                     let color = if let CSSValue::Value(c) = el.css.background_color {
                         c.real
                     } else {
                         Colour::default().real
                     };
                     let shmop = el.layout_info.expand(el.layout_info.padding);
-                    builder.fill(vello::peniko::Fill::NonZero, Affine::IDENTITY, BrushRef::Solid(Color::rgb8(color.red, color.green, color.blue)), Some(Affine::IDENTITY), &Rect::new(shmop.x, shmop.y, shmop.x + shmop.width, shmop.y + shmop.height));
-                    self.render(viewport, &el.children, builder, last_width);
+                    builder.fill(vello::peniko::Fill::NonZero, Affine::IDENTITY, BrushRef::Solid(Color::rgb8(color.red, color.green, color.blue)), Some(Affine::IDENTITY), &Rect::new(shmop.x, shmop.y - render_info.scroll_y, shmop.x + shmop.width, shmop.y - render_info.scroll_y + shmop.height));
+                    self.render(viewport, &el.children, builder, last_width, render_info);
                 },
 		Node::LaidoutText(text) => {
 		    let font_blob = Blob::new(text.font.copy_font_data().unwrap());
@@ -29,11 +32,17 @@ impl PageRenderer {
 			.draw(vello::peniko::Fill::NonZero,text.glyphs.iter().map(|v| Glyph {
 			    id: v.glyph.id as u32,
 			    x: v.x as f32,
-			    y: v.y as f32,
+			    y: (v.y - render_info.scroll_y) as f32,
 			}));
 		},
                 _ => {},
             }
         }
     }
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+pub struct RenderInfo {
+    pub scroll_y: f64,
+    //scroll_x: f64,
 }

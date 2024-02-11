@@ -88,8 +88,8 @@ impl<'a> TextLayoutifier<'a> {
 			    self.container.x + (self.container.width - line_length)
 			},
 		    };
-		     y_offset += head.y_max() as f64 * font_unit_scale_factor;
-		    *parent_height += head.y_max() as f64 * font_unit_scale_factor;
+		    y_offset += head.y_max() as f64 * font_unit_scale_factor;
+		    *parent_height += head.y_max() as f64 * font_unit_scale_factor; //need to find out how to make shit with lines that go below fit
 		    for letter in &line {
 			glyphs.push(LaidoutGlyph {
 			    x: x_offset,

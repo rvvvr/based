@@ -1,7 +1,7 @@
 use url::Url;
 use vello::{SceneBuilder, peniko::Font};
 
-use crate::{parser::{html::HTMLParser, css::CSSParser}, dom::Document, renderer::PageRenderer, layout::LayoutInfo};
+use crate::{parser::{html::HTMLParser, css::CSSParser}, dom::Document, renderer::{PageRenderer, RenderInfo}, layout::LayoutInfo};
 
 #[derive(Debug)]
 pub struct Context {
@@ -56,8 +56,8 @@ impl Context {
         self.document.cascade(self.viewport);
     }
 
-    pub fn render(&mut self, builder: &mut SceneBuilder) {
-        self.renderer.render(self.viewport, &self.document.children, builder, 100.);
+    pub fn render(&mut self, builder: &mut SceneBuilder, render_info: RenderInfo) {
+        self.renderer.render(self.viewport, &self.document.children, builder, 100., render_info);
     }
 
     pub fn layoutify(&mut self, scale_factor: f64) {
