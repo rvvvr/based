@@ -4,7 +4,7 @@ use font_kit::font::Font;
 use read_fonts::{FontRef, TableProvider, types::GlyphId, tables::hmtx::Hmtx};
 use vello::glyph;
 
-use crate::parser::css::{CSSProps, properties::FontFamily, CSSValue};
+use crate::parser::css::{CSSProps, properties::{FontFamily, Colour, TextAlign}, CSSValue};
 
 use super::LayoutInfo;
 
@@ -48,7 +48,7 @@ impl<'a> TextLayoutifier<'a> {
 	let mut font_glyphs = Vec::new();
 	
 	//this chain is kinda just a hack to treat the last word as a word ill need to do something more real at some point.
-	for ch in self.contents.chars().chain(std::iter::once(' ')) {
+	for ch in self.contents.chars().chain("  ".chars()) {
 	    let mut glyph = FontGlyph::default();
 	    if ch.is_whitespace() {
 		glyph.breakable = true;
@@ -67,28 +67,41 @@ impl<'a> TextLayoutifier<'a> {
 	let font_unit_scale_factor = (font_size * self.scale_factor) / head.units_per_em() as f64;
 
 	let mut glyphs = Vec::new();
-	let mut x_offset: f64 = self.container.x;
-	let mut y_offset: f64 = self.container.y + head.y_max() as f64 * font_unit_scale_factor;
-	*parent_height += head.y_max() as f64 * font_unit_scale_factor;
+	let mut y_offset = self.container.y;
+	let mut line = Vec::new();
 	let mut wordish = Vec::new();
-	for glyph in font_glyphs {
-	    wordish.push(glyph);
+	let mut glyphs_peekable = font_glyphs.iter().peekable();
+	while let Some(glyph) = glyphs_peekable.next() {
+	    wordish.push(*glyph);
 	    if glyph.breakable || glyph.broken {
-		let word_length = self.get_word_length(&wordish, &hmtx, font_unit_scale_factor);
-		if x_offset + word_length >= self.container.x + self.container.width || glyph.broken {
-		    x_offset = self.container.x;
-		    y_offset += head.y_max() as f64 * font_unit_scale_factor;
+		let line_length = self.get_glyphs_length(&line, &hmtx, font_unit_scale_factor, true, true);
+		let word_length = self.get_glyphs_length(&wordish, &hmtx, font_unit_scale_factor, false, false);
+		if self.container.x + line_length + word_length >= self.container.x + self.container.width || glyph.broken || glyphs_peekable.peek().is_none() {
+		    let mut x_offset = match self.containing_css.text_align.unwrap() {
+			TextAlign::Center => {
+			    self.container.x + ((self.container.width - line_length) / 2.) 
+			},
+			TextAlign::Justify | TextAlign::Left => {
+			    self.container.x
+			},
+			TextAlign::Right => {
+			    self.container.x + (self.container.width - line_length)
+			},
+		    };
+		     y_offset += head.y_max() as f64 * font_unit_scale_factor;
 		    *parent_height += head.y_max() as f64 * font_unit_scale_factor;
+		    for letter in &line {
+			glyphs.push(LaidoutGlyph {
+			    x: x_offset,
+			    y: y_offset,
+			    glyph: *letter,
+			});
+			let h_metrics = hmtx.h_metrics().get(letter.id as usize).expect("no metrics");
+			x_offset += h_metrics.advance() as f64 * font_unit_scale_factor + h_metrics.side_bearing() as f64 * font_unit_scale_factor;
+		    }
+		    line.clear();
 		}
-		for letter in &wordish {
-		    glyphs.push(LaidoutGlyph {
-			x: x_offset,
-			y: y_offset,
-			glyph: *letter,
-		    });
-		    let h_metrics = hmtx.h_metrics().get(letter.id as usize).expect("no metrics");
-		    x_offset += h_metrics.advance() as f64 * font_unit_scale_factor + h_metrics.side_bearing() as f64 * font_unit_scale_factor;
-		}
+		line.extend(&wordish);
 		wordish.clear();
 	    }
 	}
@@ -97,12 +110,34 @@ impl<'a> TextLayoutifier<'a> {
 	    glyphs,
 	    font: font.clone(),
 	    font_size,
+	    colour: self.containing_css.color.unwrap(),
 	}
     }
 
-    fn get_word_length(&self, word: &Vec<FontGlyph>, hmtx: &Hmtx,scale_factor: f64) -> f64 {
+    fn get_glyphs_length(&self, word: &Vec<FontGlyph>, hmtx: &Hmtx,scale_factor: f64, trim_leading: bool, trim_trailing: bool) -> f64 {
 	let mut length = 0.;
+	let mut first_index: usize = 0;
+	let mut last_index: usize = word.len();
+	if trim_leading {
 	for letter in word {
+	    if letter.breakable || letter.broken {
+		first_index += 1;
+	    } else {
+		break;
+	    }
+	}
+	}
+	if trim_trailing {
+	for (i, letter) in word.iter().enumerate().rev() {
+	    if letter.breakable || letter.broken {
+		
+	    } else {
+		last_index = i+1;
+		break;
+	    }
+	}
+	}
+	for letter in &word[first_index..last_index] {
 	    let h_metrics = hmtx.h_metrics().get(letter.id as usize).expect("no metrics");
 	    length += h_metrics.advance() as f64 * scale_factor + h_metrics.side_bearing() as f64 * scale_factor;
 	}
@@ -123,6 +158,7 @@ pub struct LaidoutText {
     pub glyphs: Vec<LaidoutGlyph>,
     pub font: Font,
     pub font_size: f64,
+    pub colour: Colour,
 }
 
 impl Iterator for LaidoutText {

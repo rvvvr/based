@@ -968,9 +968,19 @@ impl Sign {
 }
 
 #[derive(Debug, Default, Clone)]
-pub enum CSSValue<T: Property> {
+pub enum CSSValue<T: Property + Default + Clone> {
     #[default]
     Inherit,
     Initial,
     Value(T),
+}
+
+impl<T: Property + Default + Clone> CSSValue<T> {
+    pub fn unwrap(&self) -> T {
+	if let Self::Value(t) = self {
+	    t.clone()
+	} else {
+	    T::default()
+	}
+    }
 }

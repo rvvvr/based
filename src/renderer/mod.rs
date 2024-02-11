@@ -22,9 +22,10 @@ impl PageRenderer {
 		Node::LaidoutText(text) => {
 		    let font_blob = Blob::new(text.font.copy_font_data().unwrap());
 		    let font = Font::new(font_blob, 0);
-
+		    let colour = text.colour.real;
 		    builder.draw_glyphs(&font)
-        .font_size(text.font_size as f32)
+			.font_size(text.font_size as f32)
+			.brush(BrushRef::Solid(Color::rgba8(colour.red, colour.green, colour.blue, colour.alpha)))
 			.draw(vello::peniko::Fill::NonZero,text.glyphs.iter().map(|v| Glyph {
 			    id: v.glyph.id as u32,
 			    x: v.x as f32,

@@ -7,7 +7,7 @@ use super::{Component, CSSToken, CSSValue, CSSNumber};
 
 pub trait Property {
     fn from_components(components: Vec<Component>) -> CSSValue<Self>
-        where Self: Sized;
+        where Self: Sized + Default + Clone;
 }
 
 #[derive(Default, Debug, Clone, Copy)]
