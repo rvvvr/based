@@ -1,8 +1,10 @@
 use based::{context::{Context}, renderer::RenderInfo};
 use vello::{util::RenderContext, Scene, SceneFragment, RendererOptions, AaSupport, Renderer, RenderParams, peniko::Color, SceneBuilder, kurbo::Affine};
-use winit::{event_loop::EventLoop, window::WindowBuilder, event::{WindowEvent, Event}, dpi::LogicalSize};
+use winit::{event_loop::EventLoop, window::WindowBuilder, event::{WindowEvent, Event, MouseScrollDelta}, dpi::LogicalSize};
 
+#[derive(Default)]
 pub struct Frontend {
+    scroll_y: f64,
 }
 
 impl Frontend {
@@ -32,12 +34,26 @@ impl Frontend {
 
         let mut scene = Scene::new();
         let mut context_frag = SceneFragment::new();
-
+	let mut render_info = RenderInfo::default();
         event_loop.run(move |event, _, ctrl| {
             ctrl.set_wait();
             println!("{:?}", event);
             match event {
-                Event::WindowEvent { window_id, event: WindowEvent::CloseRequested } => ctrl.set_exit(),
+                Event::WindowEvent { window_id, event} => {
+	match event {
+	    WindowEvent::MouseWheel { device_id, delta, phase, modifiers } => {
+		match delta {
+		    MouseScrollDelta::LineDelta(x, y) => {
+			render_info.scroll_y -= y as f64;
+		    },
+		    MouseScrollDelta::PixelDelta(pos) => {
+			render_info.scroll_y -= pos.y as f64;
+		    },
+		}
+	    },
+	    _ => {},
+	}
+		},
                 Event::MainEventsCleared => {
                     window.request_redraw();
                 },
@@ -51,7 +67,7 @@ impl Frontend {
                     };
                     let mut context_builder = SceneBuilder::for_fragment(&mut context_frag);
                     let mut builder = SceneBuilder::for_scene(&mut scene);
-                    context.render(&mut builder, RenderInfo { scroll_y: 500. });
+                    context.render(&mut builder, render_info);
                     builder.append(&context_frag, Some(Affine::IDENTITY));
                     let surface_texture = surface.surface.get_current_texture().unwrap();
                     vello::block_on_wgpu(&dev_handle.device, renderer.render_to_surface_async(&dev_handle.device, &dev_handle.queue, &scene, &surface_texture, &render_params)).unwrap();
@@ -61,5 +77,14 @@ impl Frontend {
                 _ => {},
             }
         });
+    }
+
+    fn render_info(&self) -> RenderInfo {
+	RenderInfo {
+	    scroll_y: self.scroll_y,
+	}
+    }
+
+    fn handle_window_event(&mut self, event: WindowEvent) {
     }
 }

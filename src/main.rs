@@ -8,6 +8,6 @@ pub mod shmontshmend;
 
 fn main() {
     let mut context = Context::default();
-    let mut frontend = Frontend {};
+    let mut frontend = Frontend::default();
     executor::block_on(frontend.run(context));
 }
