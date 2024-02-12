@@ -30,7 +30,7 @@ impl Frontend {
             antialiasing_support: AaSupport::all(),
         };
         let mut renderer = Renderer::new(&dev_handle.device, render_options).unwrap();
-        context.layoutify(window.scale_factor());
+	context.layoutify(window.scale_factor());
 
         let mut scene = Scene::new();
         let mut context_frag = SceneFragment::new();
@@ -58,7 +58,7 @@ impl Frontend {
                     window.request_redraw();
                 },
                 Event::RedrawRequested(_) => {
-                    let dev_handle = ctx.devices.get(surface.dev_id).unwrap();
+		    let dev_handle = ctx.devices.get(surface.dev_id).unwrap();
                     let render_params = RenderParams {
                         base_color: Color::TRANSPARENT,
                         width: size.width,

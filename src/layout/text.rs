@@ -76,17 +76,18 @@ impl<'a> TextLayoutifier<'a> {
 	    if glyph.breakable || glyph.broken {
 		let line_length = self.get_glyphs_length(&line, &hmtx, font_unit_scale_factor, true, true);
 		let word_length = self.get_glyphs_length(&wordish, &hmtx, font_unit_scale_factor, false, false);
-		if self.container.x + line_length + word_length >= self.container.x + self.container.width || glyph.broken || glyphs_peekable.peek().is_none() {
+		if self.container.x + self.container.padding.1 - self.container.padding.2 + line_length + word_length >= self.container.x + self.container.width + self.container.padding.1 - self.container.padding.2 || glyph.broken || glyphs_peekable.peek().is_none() {
 		    let mut x_offset = match self.containing_css.text_align.unwrap() {
 			TextAlign::Center => {
-			    self.container.x + ((self.container.width - line_length) / 2.) 
+			    self.container.x + ((self.container.width + self.container.padding.1 - line_length) / 2.) 
 			},
-			TextAlign::Justify | TextAlign::Left => {
+			TextAlign::Left => {
 			    self.container.x
 			},
 			TextAlign::Right => {
-			    self.container.x + (self.container.width - line_length)
+			    self.container.x + (self.container.width + self.container.padding.1 - line_length)
 			},
+			TextAlign::Justify => unimplemented!("text-align: justify"),
 		    };
 		    y_offset += head.y_max() as f64 * font_unit_scale_factor;
 		    *parent_height += head.y_max() as f64 * font_unit_scale_factor; //need to find out how to make shit with lines that go below fit
