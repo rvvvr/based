@@ -1,13 +1,18 @@
-use std::{str::Chars, path::PathBuf, fs::File, io::Read, collections::VecDeque, string::ParseError};
+use std::{
+    collections::VecDeque, fs::File, io::Read, path::PathBuf, str::Chars, string::ParseError,
+};
 
-use thiserror::Error;
 use derivative::Derivative;
+use thiserror::Error;
 
-use crate::{dom::{Document, DOMCoordinate, DOMElement, Node}, function};
-use super::{Char, css::CSSParser};
+use super::{css::CSSParser, Char};
+use crate::{
+    dom::{DOMCoordinate, DOMElement, Document, Node},
+    function,
+};
 //TODO: Better errors!
 #[derive(Derivative, Debug)]
-#[derivative(Default(new="true"))]
+#[derivative(Default(new = "true"))]
 pub struct HTMLParser {
     nesting_level: usize,
     pause: bool,
@@ -36,12 +41,17 @@ pub struct HTMLParser {
 
 impl HTMLParser {
     fn normalize_source(&mut self) -> Result<(), ParserError> {
-        self.source = self.source.replace("\u{000D}\u{000A}", "\u{000A}")
-                    .replace("\u{000D}", "\u{000A}");
+        self.source = self
+            .source
+            .replace("\u{000D}\u{000A}", "\u{000A}")
+            .replace("\u{000D}", "\u{000A}");
         Ok(())
     }
 
-    pub fn parse(&mut self, document: &mut Document) -> Result<&Vec<(usize, ParsingError)>, ParserError>{
+    pub fn parse(
+        &mut self,
+        document: &mut Document,
+    ) -> Result<&Vec<(usize, ParsingError)>, ParserError> {
         self.normalize_source()?;
         loop {
             if self.done_parsing {
@@ -67,93 +77,45 @@ impl HTMLParser {
     fn tokenize(&mut self) -> Result<(), ParserError> {
         loop {
             let result = match &self.tokenization_state {
-                TokenizationState::Data => {
-                    self.tokenize_data()?
-                },
-                TokenizationState::TagOpen => {
-                    self.tokenize_tag_open()?
-                },
-                TokenizationState::EndTagOpen => {
-                    self.tokenize_end_tag_open()?
-                },
-                TokenizationState::TagName => {
-                    self.tokenize_tag_name()?
-                }
+                TokenizationState::Data => self.tokenize_data()?,
+                TokenizationState::TagOpen => self.tokenize_tag_open()?,
+                TokenizationState::EndTagOpen => self.tokenize_end_tag_open()?,
+                TokenizationState::TagName => self.tokenize_tag_name()?,
                 TokenizationState::MarkupDeclarationOpen => {
                     self.tokenize_markup_declaration_open()?
-                },
-                TokenizationState::DOCTYPE => {
-                    self.tokenize_doctype()?
-                },
-                TokenizationState::BeforeDOCTYPEName => {
-                    self.tokenize_before_doctype_name()?
-                },
-                TokenizationState::DOCTYPEName => {
-                    self.tokenize_doctype_name()?
-                },
-                TokenizationState::AfterDOCTYPEName => {
-                    self.tokenize_after_doctype_name()?
-                },
-                TokenizationState::BogusDOCTYPE => {
-                    self.tokenize_bogus_doctype()?
-                },
-                TokenizationState::CommentStart => {
-                    self.tokenize_comment_start()?
-                },
-                TokenizationState::Comment => { 
-                    self.tokenize_comment()?
-                },
-                TokenizationState::CommentEndDash => {
-                    self.tokenize_comment_end_dash()?
-                },
-                TokenizationState::CommentEnd => {
-                    self.tokenize_comment_end()?
-                },
-                TokenizationState::RAWTEXT => {
-                    self.tokenize_rawtext()?
-                },
-                TokenizationState::RAWTEXTLessThanSign => {
-                    self.tokenize_rawtext_less_than_sign()?
-                },
-                TokenizationState::RAWTEXTEndTagOpen => {
-                    self.tokenize_rawtext_end_tag_open()?
-                },
-                TokenizationState::RAWTEXTEndTagName => {
-                    self.tokenize_rawtext_end_tag_name()?
-                },
-                TokenizationState::RCDATA => {
-                    self.tokenize_rcdata()?
-                },
-                TokenizationState::RCDATALessThanSign => {
-                    self.tokenize_rcdata_less_than_sign()?
-                },
-                TokenizationState::RCDATAEndTagOpen => {
-                    self.tokenize_rcdata_end_tag_open()?
-                },
-                TokenizationState::RCDATAEndTagName => {
-                    self.tokenize_rcdata_end_tag_name()?
-                },
-                TokenizationState::BeforeAttributeName => {
-                    self.tokenize_before_attribute_name()?
-                },
-                TokenizationState::AttributeName => {
-                    self.tokenize_attribute_name()?
-                },
-                TokenizationState::AfterAttributeName => {
-                    self.tokenize_after_attribute_name()?
-                },
+                }
+                TokenizationState::DOCTYPE => self.tokenize_doctype()?,
+                TokenizationState::BeforeDOCTYPEName => self.tokenize_before_doctype_name()?,
+                TokenizationState::DOCTYPEName => self.tokenize_doctype_name()?,
+                TokenizationState::AfterDOCTYPEName => self.tokenize_after_doctype_name()?,
+                TokenizationState::BogusDOCTYPE => self.tokenize_bogus_doctype()?,
+                TokenizationState::CommentStart => self.tokenize_comment_start()?,
+                TokenizationState::Comment => self.tokenize_comment()?,
+                TokenizationState::CommentEndDash => self.tokenize_comment_end_dash()?,
+                TokenizationState::CommentEnd => self.tokenize_comment_end()?,
+                TokenizationState::RAWTEXT => self.tokenize_rawtext()?,
+                TokenizationState::RAWTEXTLessThanSign => self.tokenize_rawtext_less_than_sign()?,
+                TokenizationState::RAWTEXTEndTagOpen => self.tokenize_rawtext_end_tag_open()?,
+                TokenizationState::RAWTEXTEndTagName => self.tokenize_rawtext_end_tag_name()?,
+                TokenizationState::RCDATA => self.tokenize_rcdata()?,
+                TokenizationState::RCDATALessThanSign => self.tokenize_rcdata_less_than_sign()?,
+                TokenizationState::RCDATAEndTagOpen => self.tokenize_rcdata_end_tag_open()?,
+                TokenizationState::RCDATAEndTagName => self.tokenize_rcdata_end_tag_name()?,
+                TokenizationState::BeforeAttributeName => self.tokenize_before_attribute_name()?,
+                TokenizationState::AttributeName => self.tokenize_attribute_name()?,
+                TokenizationState::AfterAttributeName => self.tokenize_after_attribute_name()?,
                 TokenizationState::BeforeAttributeValue => {
                     self.tokenize_before_attribute_value()?
-                },
+                }
                 TokenizationState::AttributeValueDoubleQuoted => {
                     self.tokenize_attribute_value_double_quoted()?
-                },
+                }
                 TokenizationState::AfterAttributeValueQuoted => {
                     self.tokenize_after_attribute_value_quoted()?
                 }
                 a => {
                     do yeet ParserError::UnimplementedTokenizationState(*a);
-                },
+                }
             };
             if self.tokens_available {
                 return Ok(());
@@ -167,9 +129,9 @@ impl HTMLParser {
 
     fn emit(&mut self, token: Token) -> Result<(), ParserError> {
         self.tokens_available = true;
-        if let Token::StartTag { ref name, ..} = token {
+        if let Token::StartTag { ref name, .. } = token {
             self.last_start_tag = name.to_string();
-        } 
+        }
         self.emit_buffer.push_back(token);
         Ok(())
     }
@@ -193,7 +155,11 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn reprocess_token(&mut self, token: Token, new_mode: InsertionMode) -> Result<(), ParserError> {
+    fn reprocess_token(
+        &mut self,
+        token: Token,
+        new_mode: InsertionMode,
+    ) -> Result<(), ParserError> {
         self.emit_buffer.push_front(token);
         self.insertion_mode = new_mode;
         self.tokens_available = true;
@@ -204,47 +170,40 @@ impl HTMLParser {
         self.tokens_available = false;
         while let Some(token) = self.emit_buffer.pop_front() {
             match &self.insertion_mode {
-                InsertionMode::Initial => {
-                    self.handle_token_for_initial(token, document)?
-                },
-                InsertionMode::BeforeHtml => {
-                    self.handle_token_for_before_html(token, document)?
-                },
-                InsertionMode::BeforeHead => {
-                    self.handle_token_for_before_head(token, document)?
-                },
-                InsertionMode::InHead => {
-                    self.handle_token_for_in_head(token, document)?
-                },
-                InsertionMode::AfterHead => {
-                    self.handle_token_for_after_head(token, document)?
-                },
-                InsertionMode::InBody => {
-                    self.handle_token_for_in_body(token, document)?
-                },
-                InsertionMode::Text => {
-                    self.handle_token_for_text(token, document)?
-                },
-                InsertionMode::AfterBody => {
-                    self.handle_token_for_after_body(token, document)?
-                },
+                InsertionMode::Initial => self.handle_token_for_initial(token, document)?,
+                InsertionMode::BeforeHtml => self.handle_token_for_before_html(token, document)?,
+                InsertionMode::BeforeHead => self.handle_token_for_before_head(token, document)?,
+                InsertionMode::InHead => self.handle_token_for_in_head(token, document)?,
+                InsertionMode::AfterHead => self.handle_token_for_after_head(token, document)?,
+                InsertionMode::InBody => self.handle_token_for_in_body(token, document)?,
+                InsertionMode::Text => self.handle_token_for_text(token, document)?,
+                InsertionMode::AfterBody => self.handle_token_for_after_body(token, document)?,
                 InsertionMode::AfterAfterBody => {
                     self.handle_token_for_after_after_body(token, document)?
-                },
+                }
                 a => {
                     do yeet ParserError::UnimplementedInsertionMode(*a);
-                },
+                }
             }
-        };
+        }
         Ok(())
     }
 
-    fn handle_token_for_initial(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_initial(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Doctype { name, public_id, system_id, force_quirks } => {
+            Token::Doctype {
+                name,
+                public_id,
+                system_id,
+                force_quirks,
+            } => {
                 document.insert_document_type(name, system_id, public_id, force_quirks);
                 self.insertion_mode = InsertionMode::BeforeHtml;
-            },
+            }
             Token::Comment { data } => {
                 document.insert_comment(data);
             }
@@ -255,12 +214,18 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_before_html(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_before_html(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Character { char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}' } => {},
+            Token::Character {
+                char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}',
+            } => {}
             Token::Comment { data } => {
                 document.insert_comment(data);
-            },
+            }
             Token::StartTag { name, attributes } if name == "html" => {
                 let coordinate = document.insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
@@ -273,31 +238,47 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_before_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_before_head(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Character { char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}' } => {},
+            Token::Character {
+                char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}',
+            } => {}
             Token::StartTag { name, attributes } if name == "head" => {
-                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
-                self.open_elements.push(OpenElement { coordinate: coordinate.clone() });
+                let coordinate = document
+                    .get_element_for_coordinate(self.current_element().unwrap().coordinate)
+                    .insert_element(name, attributes);
+                self.open_elements.push(OpenElement {
+                    coordinate: coordinate.clone(),
+                });
                 self.head_pointer = Some(coordinate);
                 self.insertion_mode = InsertionMode::InHead;
             }
             a => {
                 do yeet ParserError::UnhandledTokenForInsertionMode(a, self.insertion_mode);
-            } 
+            }
         }
         Ok(())
     }
 
-    fn handle_token_for_in_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_in_head(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Character { char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}' } => {},
+            Token::Character {
+                char: '\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}',
+            } => {}
             Token::StartTag { ref name, .. } if name == "title" => {
                 self.generic_parsing_algorithm(token, false, document)?;
-            },
+            }
             Token::StartTag { ref name, .. } if name == "style" || name == "noframes" => {
                 self.generic_parsing_algorithm(token, true, document)?;
-            },
+            }
             Token::EndTag { ref name } if name == "head" => {
                 let _ = self.open_elements.pop();
                 self.insertion_mode = InsertionMode::AfterHead;
@@ -309,87 +290,126 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_after_head(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_after_head(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Character { char: char @ ('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}') } => {
+            Token::Character {
+                char: char @ ('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}'),
+            } => {
                 self.insert_character(char, document)?;
-            },
+            }
             Token::StartTag { name, attributes } if name == "body" => {
-                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+                let coordinate = document
+                    .get_element_for_coordinate(self.current_element().unwrap().coordinate)
+                    .insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
                 self.frameset_ok = false;
                 self.insertion_mode = InsertionMode::InBody;
-            },
-            a => {
-                do yeet ParserError::UnhandledTokenForInsertionMode(a, self.insertion_mode)
             }
+            a => do yeet ParserError::UnhandledTokenForInsertionMode(a, self.insertion_mode),
         }
         Ok(())
     }
 
-    fn handle_token_for_in_body(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_in_body(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Character { char: '\u{0000}' } =>  {},
-            Token::Character { char: char @ ('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}') } => {
+            Token::Character { char: '\u{0000}' } => {}
+            Token::Character {
+                char: char @ ('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{000D}' | '\u{0020}'),
+            } => {
                 if !self.active_formatting_elements.is_empty() {
                     todo!("Reconstruct active formatting elements!");
                 }
                 self.insert_character(char, document)?;
-            },
+            }
             Token::Character { char } => {
                 if !self.active_formatting_elements.is_empty() {
                     todo!("Reconstruct active formatting elements!");
                 }
                 self.insert_character(char, document)?;
-            },
+            }
             Token::StartTag { name, attributes } if name == "p" => {
-                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+                let coordinate = document
+                    .get_element_for_coordinate(self.current_element().unwrap().coordinate)
+                    .insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
-            },
-            Token::StartTag { name, attributes } if name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" => {
+            }
+            Token::StartTag { name, attributes }
+                if name == "h1"
+                    || name == "h2"
+                    || name == "h3"
+                    || name == "h4"
+                    || name == "h5"
+                    || name == "h6" =>
+            {
                 //TODO: check for p in button scope
                 //TODO: also check if current element is h1..=6
-                let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
+                let coordinate = document
+                    .get_element_for_coordinate(self.current_element().unwrap().coordinate)
+                    .insert_element(name, attributes);
                 self.open_elements.push(OpenElement { coordinate });
-            },
-            Token::EndTag { name } if name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" => {
+            }
+            Token::EndTag { name }
+                if name == "h1"
+                    || name == "h2"
+                    || name == "h3"
+                    || name == "h4"
+                    || name == "h5"
+                    || name == "h6" =>
+            {
                 //TODO: Generate implied end tags
                 //TODO: Check for element in scope
                 while let Some(element) = self.open_elements.pop() {
-                    let element_name = &document.get_element_for_coordinate(element.coordinate).tag_name;
+                    let element_name = &document
+                        .get_element_for_coordinate(element.coordinate)
+                        .tag_name;
                     if element_name == &name {
                         break;
                     }
                 }
-            },
+            }
             Token::EndTag { name } if name == "p" => {
                 while let Some(element) = self.open_elements.pop() {
-                    let element_name = &document.get_element_for_coordinate(element.coordinate).tag_name;
+                    let element_name = &document
+                        .get_element_for_coordinate(element.coordinate)
+                        .tag_name;
                     if element_name == &name {
                         break;
                     }
                 }
-            },
+            }
             Token::EndTag { name } if name == "body" => {
                 //TODO: Check for body tag in scope
                 //TODO: Check if one of those other trillion elements are in scope
                 self.insertion_mode = InsertionMode::AfterBody;
-            },
-            a => {
-                do yeet ParserError::UnhandledTokenForInsertionMode(a, self.insertion_mode)
-            },
+            }
+            a => do yeet ParserError::UnhandledTokenForInsertionMode(a, self.insertion_mode),
         }
         Ok(())
     }
 
-    fn handle_token_for_text(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_text(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
             Token::Character { char } => {
-                document.get_element_for_coordinate(self.current_element().unwrap().coordinate).data.push(char);
-            },
+                document
+                    .get_element_for_coordinate(self.current_element().unwrap().coordinate)
+                    .data
+                    .push(char);
+            }
             Token::EndTag { name } if name == "script" => {
                 todo!();
-            },
+            }
             Token::EndTag { name } => {
                 self.open_elements.pop();
                 self.insertion_mode = self.insertion_mode_origin;
@@ -401,41 +421,70 @@ impl HTMLParser {
         Ok(())
     }
 
-    fn handle_token_for_after_body(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_after_body(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
-                self.handle_token_for_in_body(token,  document)?
-            },
+            Token::Character { char }
+                if (char == '\u{0009}')
+                    || (char == '\u{000A}')
+                    || (char == '\u{000C}')
+                    || (char == '\u{000D}')
+                    || (char == '\u{0020}') =>
+            {
+                self.handle_token_for_in_body(token, document)?
+            }
             Token::EndTag { name } if name == "html" => {
                 //TODO: Something to do with fragment parsing.
                 self.insertion_mode = InsertionMode::AfterAfterBody;
             }
             a => {
                 do yeet ParserError::UnhandledTokenForInsertionMode(a, self.insertion_mode);
-            },
+            }
         }
         Ok(())
     }
 
-    fn handle_token_for_after_after_body(&mut self, token: Token, document: &mut Document) -> Result<(), ParserError> {
+    fn handle_token_for_after_after_body(
+        &mut self,
+        token: Token,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         match token {
-            Token::Character { char } if (char == '\u{0009}') || (char == '\u{000A}') || (char == '\u{000C}') || (char == '\u{000D}') || (char == '\u{0020}') => {
+            Token::Character { char }
+                if (char == '\u{0009}')
+                    || (char == '\u{000A}')
+                    || (char == '\u{000C}')
+                    || (char == '\u{000D}')
+                    || (char == '\u{0020}') =>
+            {
                 self.handle_token_for_in_body(token, document)?
-            },
+            }
             Token::EOF => {
                 self.done_parsing = true;
-            },
+            }
             a => {
                 do yeet ParserError::UnhandledTokenForInsertionMode(a, self.insertion_mode);
-            },
+            }
         }
         Ok(())
     }
 
-    fn generic_parsing_algorithm(&mut self, token: Token, raw_text: bool, document: &mut Document) -> Result<(), ParserError> {
+    fn generic_parsing_algorithm(
+        &mut self,
+        token: Token,
+        raw_text: bool,
+        document: &mut Document,
+    ) -> Result<(), ParserError> {
         if let Token::StartTag { name, attributes } = token {
-            let coordinate = document.get_element_for_coordinate(self.current_element().unwrap().coordinate).insert_element(name, attributes);
-            self.open_elements.push(OpenElement { coordinate: coordinate.clone() });
+            let coordinate = document
+                .get_element_for_coordinate(self.current_element().unwrap().coordinate)
+                .insert_element(name, attributes);
+            self.open_elements.push(OpenElement {
+                coordinate: coordinate.clone(),
+            });
             self.tokenization_state = if raw_text {
                 TokenizationState::RAWTEXT
             } else {
@@ -464,15 +513,16 @@ impl HTMLParser {
     }
 
     fn insert_character(&mut self, c: char, document: &mut Document) -> Result<(), ParserError> {
-        let current_node = document.get_element_for_coordinate(self.current_element().unwrap().coordinate);
+        let current_node =
+            document.get_element_for_coordinate(self.current_element().unwrap().coordinate);
         if ["table", "tbody", "tfoot", "thead", "tr"].contains(&current_node.tag_name.as_str()) {
             todo!("Foster parenting")
         }
         let last_child = current_node.children.last_mut();
         if !last_child.is_some_and(|node| {
             if let Node::Text(ref mut internal) = node {
-               internal.push(c); 
-               return true;
+                internal.push(c);
+                return true;
             }
             return false;
         }) {
@@ -490,13 +540,13 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('<') => {
                 self.tokenization_state = TokenizationState::TagOpen;
-            },
+            }
             Char::Char(c) => {
                 self.emit(Token::Character { char: c })?;
-            },
+            }
             Char::Eof => {
                 self.emit(Token::EOF)?;
-            },
+            }
         };
         Ok(())
     }
@@ -505,20 +555,29 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('!') => {
                 self.tokenization_state = TokenizationState::MarkupDeclarationOpen;
-            },
+            }
             Char::Char('/') => {
                 self.tokenization_state = TokenizationState::EndTagOpen;
-            },
+            }
             Char::Char('a'..='z' | 'A'..='Z') => {
-                self.current_token = Token::StartTag { name: String::new(), attributes: vec![] };
+                self.current_token = Token::StartTag {
+                    name: String::new(),
+                    attributes: vec![],
+                };
                 self.reconsume(TokenizationState::TagName);
-            },
+            }
             Char::Char(c) => {
-                do yeet ParserError::UnhandledCharForTokenizationState(Char::Char(c), self.tokenization_state);
-            },
+                do yeet ParserError::UnhandledCharForTokenizationState(
+                    Char::Char(c),
+                    self.tokenization_state,
+                );
+            }
             Char::Eof => {
-                do yeet ParserError::UnhandledCharForTokenizationState(Char::Eof, self.tokenization_state);
-            },
+                do yeet ParserError::UnhandledCharForTokenizationState(
+                    Char::Eof,
+                    self.tokenization_state,
+                );
+            }
         };
         Ok(())
     }
@@ -526,23 +585,27 @@ impl HTMLParser {
     fn tokenize_end_tag_open(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char(c) if ('a'..='z').contains(&c) || ('A'..='Z').contains(&c) => {
-                self.current_token = Token::EndTag { name: String::new() };
+                self.current_token = Token::EndTag {
+                    name: String::new(),
+                };
                 self.reconsume(TokenizationState::TagName);
-            },
+            }
             Char::Char('>') => {
                 self.tokenization_state = TokenizationState::Data;
                 do yeet ParsingError::MissingEndTagName;
-            },
+            }
             Char::Char(_) => {
-                self.current_token = Token::Comment { data: String::new() };
+                self.current_token = Token::Comment {
+                    data: String::new(),
+                };
                 self.reconsume(TokenizationState::BogusComment);
                 do yeet ParsingError::EofBeforeTagName;
-            },
+            }
             Char::Eof => {
                 self.emit(Token::Character { char: '<' })?;
                 self.emit(Token::Character { char: '/' })?;
                 self.emit(Token::EOF)?;
-            },
+            }
         }
         Ok(())
     }
@@ -551,14 +614,14 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 self.tokenization_state = TokenizationState::BeforeAttributeName;
-            },
+            }
             Char::Char('/') => {
                 self.tokenization_state = TokenizationState::SelfClosingStartTag;
-            },
+            }
             Char::Char('>') => {
                 self.tokenization_state = TokenizationState::Data;
                 self.emit_current()?;
-            },
+            }
             Char::Char(c) if ('A'..='Z').contains(&c) => {
                 if let Token::StartTag { ref mut name, .. } = self.current_token {
                     name.push(char::from_u32(c as u32 + 0x20).unwrap());
@@ -567,7 +630,7 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char('\u{0000}') => {
                 if let Token::StartTag { ref mut name, .. } = self.current_token {
                     name.push('\u{FFFD}');
@@ -576,7 +639,7 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char(c) => {
                 if let Token::StartTag { ref mut name, .. } = self.current_token {
                     name.push(c);
@@ -589,7 +652,7 @@ impl HTMLParser {
             Char::Eof => {
                 self.emit(Token::EOF)?;
                 do yeet ParserError::ParsingError(ParsingError::EofInTag);
-            },
+            }
         }
         Ok(())
     }
@@ -598,12 +661,16 @@ impl HTMLParser {
         if &self.source[self.source_idx..self.source_idx + 2] == "--" {
             self.source_idx += 2;
             self.tokenization_state = TokenizationState::CommentStart;
-            self.current_token = Token::Comment { data: String::new() };
+            self.current_token = Token::Comment {
+                data: String::new(),
+            };
         } else if &self.source[self.source_idx..self.source_idx + 7] == "DOCTYPE" {
             self.source_idx += 7;
             self.tokenization_state = TokenizationState::DOCTYPE;
-        } else { 
-            self.current_token = Token::Comment { data: String::new() };
+        } else {
+            self.current_token = Token::Comment {
+                data: String::new(),
+            };
             self.tokenization_state = TokenizationState::BogusComment;
             do yeet ParserError::ParsingError(ParsingError::IncorrectlyOpenedComment);
         };
@@ -614,42 +681,73 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 self.tokenization_state = TokenizationState::BeforeDOCTYPEName;
-            },
+            }
             Char::Char(c) => {
-                do yeet ParserError::UnhandledCharForTokenizationState(Char::Char(c), self.tokenization_state);
-            },
+                do yeet ParserError::UnhandledCharForTokenizationState(
+                    Char::Char(c),
+                    self.tokenization_state,
+                );
+            }
             Char::Eof => {
-                do yeet ParserError::UnhandledCharForTokenizationState(Char::Eof, self.tokenization_state);
-            },
+                do yeet ParserError::UnhandledCharForTokenizationState(
+                    Char::Eof,
+                    self.tokenization_state,
+                );
+            }
         }
         Ok(())
     }
 
     fn tokenize_before_doctype_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
-            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
-            },
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {}
             Char::Char(c) if ('\u{0041}'..='\u{005A}').contains(&c) => {
-                self.current_token = Token::Doctype { name: String::from(char::from_u32(c as u32 + 0x20).unwrap()), public_id: String::new(), system_id: String::new(), force_quirks: false };
+                self.current_token = Token::Doctype {
+                    name: String::from(char::from_u32(c as u32 + 0x20).unwrap()),
+                    public_id: String::new(),
+                    system_id: String::new(),
+                    force_quirks: false,
+                };
                 self.tokenization_state = TokenizationState::DOCTYPEName;
-            },
+            }
             Char::Char('\u{0000}') => {
-                self.current_token = Token::Doctype { name: String::from("\u{FFFD}"), public_id: String::new(), system_id: String::new(), force_quirks: false };
+                self.current_token = Token::Doctype {
+                    name: String::from("\u{FFFD}"),
+                    public_id: String::new(),
+                    system_id: String::new(),
+                    force_quirks: false,
+                };
                 self.tokenization_state = TokenizationState::DOCTYPEName;
-            },
+            }
             Char::Char('>') => {
-                self.current_token = Token::Doctype { name: String::new(), public_id: String::new(), system_id: String::new(), force_quirks: true };
+                self.current_token = Token::Doctype {
+                    name: String::new(),
+                    public_id: String::new(),
+                    system_id: String::new(),
+                    force_quirks: true,
+                };
                 self.tokenization_state = TokenizationState::Data;
                 self.emit_current();
-                do yeet ParserError::UnhandledCharForTokenizationState(Char::Char('>'), self.tokenization_state);
+                do yeet ParserError::UnhandledCharForTokenizationState(
+                    Char::Char('>'),
+                    self.tokenization_state,
+                );
             }
             Char::Char(c) => {
-                self.current_token = Token::Doctype { name: String::from(c), public_id: String::new(), system_id: String::new(), force_quirks: false };
+                self.current_token = Token::Doctype {
+                    name: String::from(c),
+                    public_id: String::new(),
+                    system_id: String::new(),
+                    force_quirks: false,
+                };
                 self.tokenization_state = TokenizationState::DOCTYPEName;
-            },
+            }
             Char::Eof => {
-                do yeet ParserError::UnhandledCharForTokenizationState(Char::Eof, self.tokenization_state);
-            },
+                do yeet ParserError::UnhandledCharForTokenizationState(
+                    Char::Eof,
+                    self.tokenization_state,
+                );
+            }
         };
         Ok(())
     }
@@ -658,14 +756,14 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 self.tokenization_state = TokenizationState::AfterDOCTYPEName;
-            },
+            }
             Char::Char(c) if ('\u{0041}'..='\u{005A}').contains(&c) => {
-                if let Token::Doctype { ref mut name, .. } = self.current_token { 
+                if let Token::Doctype { ref mut name, .. } = self.current_token {
                     name.push(char::from_u32(c as u32 + 0x20).unwrap());
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char('>') => {
                 self.tokenization_state = TokenizationState::Data;
                 self.emit_current()?;
@@ -676,40 +774,51 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char(c) => {
-                if let Token::Doctype { ref mut name, ..} = self.current_token {
+                if let Token::Doctype { ref mut name, .. } = self.current_token {
                     name.push(c);
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Eof => {
-                do yeet ParserError::UnhandledCharForTokenizationState(Char::Eof, self.tokenization_state);
-            },
+                do yeet ParserError::UnhandledCharForTokenizationState(
+                    Char::Eof,
+                    self.tokenization_state,
+                );
+            }
         };
         Ok(())
     }
 
     fn tokenize_after_doctype_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
-            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {}
             Char::Char('>') => {
                 self.tokenization_state = TokenizationState::Data;
                 self.emit_current()?;
-            },
+            }
             Char::Char(_) => {
                 //TODO: Public and system identifiers
-                if let Token::Doctype { ref mut force_quirks, .. } = &mut self.current_token {
+                if let Token::Doctype {
+                    ref mut force_quirks,
+                    ..
+                } = &mut self.current_token
+                {
                     *force_quirks = true;
                     self.reconsume(TokenizationState::BogusDOCTYPE);
                     do yeet ParsingError::InvalidCharacterSequenceAfterDoctypeName;
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Eof => {
-                if let Token::Doctype { ref mut force_quirks, .. } = &mut self.current_token {
+                if let Token::Doctype {
+                    ref mut force_quirks,
+                    ..
+                } = &mut self.current_token
+                {
                     *force_quirks = true;
                     self.emit_current()?;
                     self.emit(Token::EOF)?;
@@ -717,7 +826,6 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-                
             }
         }
         Ok(())
@@ -728,29 +836,29 @@ impl HTMLParser {
             Char::Char('>') => {
                 self.tokenization_state = TokenizationState::Data;
                 self.emit_current()?;
-            },
+            }
             Char::Char('\u{0000}') => {
                 do yeet ParsingError::UnexpectedNullCharacter;
-            },
+            }
             Char::Eof => {
                 self.emit_current()?;
                 self.emit(Token::EOF)?;
-            },
-            Char::Char(_) => {},
+            }
+            Char::Char(_) => {}
         }
-        Ok(()) 
+        Ok(())
     }
 
     fn tokenize_comment_start(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('-') => {
                 self.tokenization_state = TokenizationState::CommentStartDash;
-            },
+            }
             Char::Char('>') => {
                 self.tokenization_state = TokenizationState::Data;
                 self.emit_current()?;
                 do yeet ParserError::ParsingError(ParsingError::AbruptClosingOfEmptyComment);
-            },
+            }
             _ => {
                 self.reconsume(TokenizationState::Comment);
             }
@@ -767,26 +875,26 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char('-') => {
                 self.tokenization_state = TokenizationState::CommentEndDash;
-            },
+            }
             Char::Char('\u{0000}') => {
                 if let Token::Comment { ref mut data } = self.current_token {
                     data.push('\u{FFFD}');
                     do yeet ParserError::ParsingError(ParsingError::UnexpectedNullCharacter);
                 }
-            },
+            }
             Char::Char(c) => {
                 if let Token::Comment { ref mut data } = self.current_token {
                     data.push(c);
                 }
-            },
+            }
             Char::Eof => {
                 self.emit_current()?;
                 self.emit(Token::EOF)?;
                 do yeet ParserError::ParsingError(ParsingError::EofInComment);
-            },
+            }
         }
         Ok(())
     }
@@ -795,7 +903,7 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('-') => {
                 self.tokenization_state = TokenizationState::CommentEnd;
-            },
+            }
             Char::Char(_) => {
                 if let Token::Comment { ref mut data } = self.current_token {
                     data.push('-');
@@ -803,12 +911,12 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Eof => {
                 self.emit_current()?;
                 self.emit(Token::EOF)?;
                 do yeet ParserError::ParsingError(ParsingError::EofInComment);
-            },
+            }
         }
         Ok(())
     }
@@ -818,17 +926,17 @@ impl HTMLParser {
             Char::Char('>') => {
                 self.emit_current()?;
                 self.tokenization_state = TokenizationState::Data;
-            },
+            }
             Char::Char('!') => {
                 self.tokenization_state = TokenizationState::CommentEndBang;
-            },
+            }
             Char::Char('-') => {
                 if let Token::Comment { ref mut data } = self.current_token {
                     data.push('-');
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char(_) => {
                 if let Token::Comment { ref mut data } = self.current_token {
                     data.push('-');
@@ -837,12 +945,12 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Eof => {
                 self.emit_current()?;
                 self.emit(Token::EOF)?;
                 do yeet ParserError::ParsingError(ParsingError::EofInComment);
-            },
+            }
         }
         Ok(())
     }
@@ -851,14 +959,14 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('<') => {
                 self.tokenization_state = TokenizationState::RAWTEXTLessThanSign;
-            },
+            }
             Char::Char('\u{0000}') => {
                 self.emit(Token::Character { char: '\u{FFFD}' })?;
                 do yeet ParsingError::UnexpectedNullCharacter;
-            },
+            }
             Char::Char(c) => {
                 self.emit(Token::Character { char: c })?;
-            },
+            }
             Char::Eof => {
                 self.emit(Token::EOF)?;
             }
@@ -871,7 +979,7 @@ impl HTMLParser {
             Char::Char('/') => {
                 self.temp_buffer.clear();
                 self.tokenization_state = TokenizationState::RAWTEXTEndTagOpen;
-            },
+            }
             _ => {
                 self.emit(Token::Character { char: '<' })?;
                 self.reconsume(TokenizationState::RAWTEXT);
@@ -883,39 +991,41 @@ impl HTMLParser {
     fn tokenize_rawtext_end_tag_open(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('A'..='Z' | 'a'..='z') => {
-                self.current_token = Token::EndTag { name: String::new() };
+                self.current_token = Token::EndTag {
+                    name: String::new(),
+                };
                 self.reconsume(TokenizationState::RAWTEXTEndTagName);
-            },
+            }
             _ => {
                 self.emit(Token::Character { char: '<' })?;
                 self.emit(Token::Character { char: '/' })?;
                 self.reconsume(TokenizationState::RAWTEXT);
-            },
+            }
         }
         Ok(())
     }
 
     fn tokenize_rawtext_end_tag_name(&mut self) -> Result<(), ParserError> {
-        match self.consume() { 
+        match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 if self.current_tag_is_appropriate()? {
                     self.tokenization_state = TokenizationState::BeforeAttributeName;
                     return Ok(());
                 }
-            },
+            }
             Char::Char('/') => {
-                if self.current_tag_is_appropriate()? { 
+                if self.current_tag_is_appropriate()? {
                     self.tokenization_state = TokenizationState::SelfClosingStartTag;
                     return Ok(());
                 }
-            },
+            }
             Char::Char('>') => {
                 if self.current_tag_is_appropriate()? {
                     self.tokenization_state = TokenizationState::Data;
                     self.emit_current()?;
-                    return Ok(())
+                    return Ok(());
                 }
-            },
+            }
             Char::Char(c) if ('A'..='Z').contains(&c) => {
                 if let Token::EndTag { ref mut name } = self.current_token {
                     name.push(char::from_u32(c as u32 + 0x20).unwrap());
@@ -924,7 +1034,7 @@ impl HTMLParser {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
                 return Ok(());
-            },
+            }
             Char::Char(c) if ('a'..='z').contains(&c) => {
                 if let Token::EndTag { ref mut name } = self.current_token {
                     name.push(c);
@@ -932,9 +1042,9 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-                return Ok(())
-            },
-            _ => {},
+                return Ok(());
+            }
+            _ => {}
         };
         self.emit(Token::Character { char: '<' })?;
         self.emit(Token::Character { char: '/' })?;
@@ -948,15 +1058,15 @@ impl HTMLParser {
             Char::Char('&') => {
                 self.tokenization_state_origin = self.tokenization_state;
                 self.tokenization_state = TokenizationState::CharacterReference;
-            },
+            }
             Char::Char('<') => {
                 self.tokenization_state = TokenizationState::RCDATALessThanSign;
-            },
+            }
             Char::Char('\u{0000}') => {
-                self.emit(Token::Character { char: '\u{FFFD}'})?;
+                self.emit(Token::Character { char: '\u{FFFD}' })?;
                 do yeet ParsingError::UnexpectedNullCharacter;
             }
-            Char::Char(c) => { 
+            Char::Char(c) => {
                 self.emit(Token::Character { char: c })?;
             }
             Char::Eof => {
@@ -971,7 +1081,7 @@ impl HTMLParser {
             Char::Char('/') => {
                 self.temp_buffer.clear();
                 self.tokenization_state = TokenizationState::RCDATAEndTagOpen;
-            },
+            }
             _ => {
                 self.emit(Token::Character { char: '<' })?;
                 self.reconsume(TokenizationState::RCDATA);
@@ -979,13 +1089,15 @@ impl HTMLParser {
         }
         Ok(())
     }
-    
+
     fn tokenize_rcdata_end_tag_open(&mut self) -> Result<(), ParserError> {
         match self.consume() {
             Char::Char('a'..='z' | 'A'..='Z') => {
                 self.reconsume(TokenizationState::RCDATAEndTagName);
-                self.current_token = Token::EndTag { name: String::new() };
-            },
+                self.current_token = Token::EndTag {
+                    name: String::new(),
+                };
+            }
             _ => {
                 self.emit(Token::Character { char: '<' })?;
                 self.emit(Token::Character { char: '/' })?;
@@ -994,28 +1106,28 @@ impl HTMLParser {
         }
         Ok(())
     }
-    
+
     fn tokenize_rcdata_end_tag_name(&mut self) -> Result<(), ParserError> {
-        match self.consume() { 
+        match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 if self.current_tag_is_appropriate()? {
                     self.tokenization_state = TokenizationState::BeforeAttributeName;
                     return Ok(());
                 }
-            },
+            }
             Char::Char('/') => {
-                if self.current_tag_is_appropriate()? { 
+                if self.current_tag_is_appropriate()? {
                     self.tokenization_state = TokenizationState::SelfClosingStartTag;
                     return Ok(());
                 }
-            },
+            }
             Char::Char('>') => {
                 if self.current_tag_is_appropriate()? {
                     self.tokenization_state = TokenizationState::Data;
                     self.emit_current()?;
-                    return Ok(())
+                    return Ok(());
                 }
-            },
+            }
             Char::Char(c) if ('A'..='Z').contains(&c) => {
                 if let Token::EndTag { ref mut name } = self.current_token {
                     name.push(char::from_u32(c as u32 + 0x20).unwrap());
@@ -1024,7 +1136,7 @@ impl HTMLParser {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
                 return Ok(());
-            },
+            }
             Char::Char(c) if ('a'..='z').contains(&c) => {
                 if let Token::EndTag { ref mut name } = self.current_token {
                     name.push(c);
@@ -1032,9 +1144,9 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-                return Ok(())
-            },
-            _ => {},
+                return Ok(());
+            }
+            _ => {}
         };
         self.emit(Token::Character { char: '<' })?;
         self.emit(Token::Character { char: '/' })?;
@@ -1045,12 +1157,15 @@ impl HTMLParser {
 
     fn tokenize_before_attribute_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
-            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {}
             Char::Eof | Char::Char('>' | '/') => {
                 self.reconsume(TokenizationState::AfterAttributeName);
-            },
+            }
             Char::Char(c) => {
-                if let Token::StartTag { ref mut attributes, .. } = &mut self.current_token {
+                if let Token::StartTag {
+                    ref mut attributes, ..
+                } = &mut self.current_token
+                {
                     attributes.push((String::new(), String::new()));
                     self.reconsume(TokenizationState::AttributeName);
                 }
@@ -1061,14 +1176,19 @@ impl HTMLParser {
 
     fn tokenize_attribute_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
-            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}' | '>' | '/') | Char::Eof => {
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}' | '>' | '/')
+            | Char::Eof => {
                 self.reconsume(TokenizationState::AfterAttributeName);
-            },
+            }
             Char::Char('=') => {
                 self.tokenization_state = TokenizationState::BeforeAttributeValue;
-            },
+            }
             Char::Char(c) if ('A'..='Z').contains(&c) => {
-                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                if let Token::StartTag {
+                    name,
+                    ref mut attributes,
+                } = &mut self.current_token
+                {
                     if let Some((ref mut name, ref value)) = attributes.last_mut() {
                         name.push(char::from_u32(c as u32 + 0x20).unwrap());
                     } else {
@@ -1077,9 +1197,13 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char('\u{0000}') => {
-                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                if let Token::StartTag {
+                    name,
+                    ref mut attributes,
+                } = &mut self.current_token
+                {
                     if let Some((ref mut name, ref value)) = attributes.last_mut() {
                         name.push('\u{FFFD}');
                     } else {
@@ -1088,9 +1212,13 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Char(c) => {
-                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                if let Token::StartTag {
+                    name,
+                    ref mut attributes,
+                } = &mut self.current_token
+                {
                     if let Some((ref mut name, ref value)) = attributes.last_mut() {
                         name.push(c);
                     } else {
@@ -1106,24 +1234,28 @@ impl HTMLParser {
 
     fn tokenize_after_attribute_name(&mut self) -> Result<(), ParserError> {
         match self.consume() {
-            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {}
             Char::Char('/') => {
                 self.tokenization_state = TokenizationState::SelfClosingStartTag;
-            },
+            }
             Char::Char('=') => {
                 self.tokenization_state = TokenizationState::BeforeAttributeValue;
-            },
+            }
             Char::Char('>') => {
                 self.emit_current()?;
                 self.tokenization_state = TokenizationState::Data;
-            },
+            }
             Char::Char(c) => {
-                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                if let Token::StartTag {
+                    name,
+                    ref mut attributes,
+                } = &mut self.current_token
+                {
                     attributes.push((String::new(), String::new()));
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Eof => {
                 self.emit(Token::EOF)?;
                 do yeet ParsingError::EofInTag;
@@ -1134,18 +1266,18 @@ impl HTMLParser {
 
     fn tokenize_before_attribute_value(&mut self) -> Result<(), ParserError> {
         match self.consume() {
-            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {},
+            Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {}
             Char::Char('"') => {
                 self.tokenization_state = TokenizationState::AttributeValueDoubleQuoted;
-            },
+            }
             Char::Char('\'') => {
                 self.tokenization_state = TokenizationState::AttributeValueSingleQuoted;
-            },
+            }
             Char::Char('>') => {
                 self.emit_current()?;
                 self.tokenization_state = TokenizationState::Data;
                 do yeet ParsingError::MissingAttributeValue;
-            },
+            }
             _ => {
                 self.reconsume(TokenizationState::AttributeValueUnquoted);
             }
@@ -1157,13 +1289,17 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('"') => {
                 self.tokenization_state = TokenizationState::AfterAttributeValueQuoted;
-            },
+            }
             Char::Char('&') => {
                 self.tokenization_state_origin = self.tokenization_state;
                 self.tokenization_state = TokenizationState::CharacterReference;
-            },
+            }
             Char::Char('\u{0000}') => {
-                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                if let Token::StartTag {
+                    name,
+                    ref mut attributes,
+                } = &mut self.current_token
+                {
                     if let Some((ref name, ref mut value)) = attributes.last_mut() {
                         value.push('\u{FFFD}');
                     } else {
@@ -1174,7 +1310,11 @@ impl HTMLParser {
                 }
             }
             Char::Char(c) => {
-                if let Token::StartTag { name, ref mut attributes } = &mut self.current_token {
+                if let Token::StartTag {
+                    name,
+                    ref mut attributes,
+                } = &mut self.current_token
+                {
                     if let Some((ref name, ref mut value)) = attributes.last_mut() {
                         value.push(c);
                     } else {
@@ -1183,11 +1323,11 @@ impl HTMLParser {
                 } else {
                     do yeet ParserError::CurrentTokenWrongType(function!());
                 }
-            },
+            }
             Char::Eof => {
                 self.emit(Token::EOF);
                 do yeet ParsingError::EofInTag;
-            },
+            }
         }
         Ok(())
     }
@@ -1196,18 +1336,18 @@ impl HTMLParser {
         match self.consume() {
             Char::Char('\u{0009}' | '\u{000A}' | '\u{000C}' | '\u{0020}') => {
                 self.tokenization_state = TokenizationState::BeforeAttributeName;
-            },
+            }
             Char::Char('/') => {
                 self.tokenization_state = TokenizationState::SelfClosingStartTag;
-            },
+            }
             Char::Char('>') => {
                 self.tokenization_state = TokenizationState::Data;
                 self.emit_current()?;
-            },
+            }
             Char::Char(_) => {
                 self.reconsume(TokenizationState::BeforeAttributeName);
                 do yeet ParsingError::MissingWhitespaceBetweenAttributes;
-            },
+            }
             Char::Eof => {
                 self.emit(Token::EOF)?;
                 do yeet ParsingError::EofInTag;
@@ -1217,9 +1357,12 @@ impl HTMLParser {
     }
 
     fn current_tag_is_appropriate(&self) -> Result<bool, ParserError> {
-        Ok(if let Token::EndTag { ref name } = self.current_token { name } else { do yeet ParserError::CurrentTokenWrongType(function!()) } == &self.last_start_tag)
+        Ok(if let Token::EndTag { ref name } = self.current_token {
+            name
+        } else {
+            do yeet ParserError::CurrentTokenWrongType(function!())
+        } == &self.last_start_tag)
     }
-    
 }
 
 #[derive(Debug, Default, Clone)]
@@ -1240,13 +1383,12 @@ pub enum Token {
     },
     StartTag {
         name: String,
-        attributes: Vec<(String, String)>
+        attributes: Vec<(String, String)>,
     },
     EndTag {
-        name: String
+        name: String,
     },
 }
-
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum InsertionMode {

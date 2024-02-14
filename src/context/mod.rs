@@ -1,7 +1,12 @@
 use url::Url;
-use vello::{SceneBuilder, peniko::Font};
+use vello::{peniko::Font, SceneBuilder};
 
-use crate::{parser::{html::HTMLParser, css::CSSParser}, dom::Document, renderer::{PageRenderer, RenderInfo}, layout::LayoutInfo};
+use crate::{
+    dom::Document,
+    layout::LayoutInfo,
+    parser::{css::CSSParser, html::HTMLParser},
+    renderer::{PageRenderer, RenderInfo},
+};
 
 #[derive(Debug)]
 pub struct Context {
@@ -22,8 +27,11 @@ impl Default for Context {
             document: Document::default(),
             viewport: Viewport::default(),
             renderer: PageRenderer::default(),
-            url: Url::from_directory_path(std::env::current_dir().unwrap()).unwrap().join("tests/basic.html").unwrap(),
-	    fonts: Vec::new(),
+            url: Url::from_directory_path(std::env::current_dir().unwrap())
+                .unwrap()
+                .join("tests/basic.html")
+                .unwrap(),
+            fonts: Vec::new(),
         }
     }
 }
@@ -38,7 +46,9 @@ impl Context {
 
     pub fn load(&mut self) {
         if self.url.scheme() == "file" {
-            self.html.load_from_file(self.url.to_file_path().unwrap()).unwrap();
+            self.html
+                .load_from_file(self.url.to_file_path().unwrap())
+                .unwrap();
         } else {
             unimplemented!();
         }
@@ -50,14 +60,22 @@ impl Context {
 
     pub fn go(&mut self) {
         self.html.parse(&mut self.document).unwrap();
-        self.css.push_raw_css(&std::include_str!("../../real_shit/default.css").to_string());
+        self.css
+            .push_raw_css(&std::include_str!("../../real_shit/default.css").to_string());
         self.css.push_many(self.document.find_css_sources());
-        self.document.add_styles(self.css.parse_stylesheets().unwrap());
+        self.document
+            .add_styles(self.css.parse_stylesheets().unwrap());
         self.document.cascade(self.viewport);
     }
 
     pub fn render(&mut self, builder: &mut SceneBuilder, render_info: RenderInfo) {
-        self.renderer.render(self.viewport, &self.document.children, builder, 100., render_info);
+        self.renderer.render(
+            self.viewport,
+            &self.document.children,
+            builder,
+            100.,
+            render_info,
+        );
     }
 
     pub fn layoutify(&mut self, scale_factor: f64) {
@@ -73,10 +91,7 @@ pub struct Viewport {
 
 impl Viewport {
     pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            width,
-            height,
-        }
+        Self { width, height }
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
@@ -85,6 +100,12 @@ impl Viewport {
     }
 
     pub fn into_layout(&self) -> LayoutInfo {
-        LayoutInfo { x: 0., y: 0., width: self.width as f64, height: self.height as f64, ..Default::default() }
+        LayoutInfo {
+            x: 0.,
+            y: 0.,
+            width: self.width as f64,
+            height: self.height as f64,
+            ..Default::default()
+        }
     }
 }

@@ -1,6 +1,13 @@
-use crate::{dom::{Node, Element}, parser::css::{Selector, Rule, properties::Dimensionality}, context::Viewport};
-
-use super::{StyleData, Prelude, Declaration, DeclarationKind, Block, CSSValue, properties::{Colour, TextAlign, FontSize, Display, FontFamily}, CSSProps, RuleBuilder, CSSNumber, Unit, Numeric};
+use super::{
+    properties::{Colour, Display, FontFamily, FontSize, FontWeight, TextAlign},
+    Block, CSSNumber, CSSProps, CSSValue, Declaration, DeclarationKind, Numeric, Prelude,
+    RuleBuilder, StyleData, Unit,
+};
+use crate::{
+    context::Viewport,
+    dom::{Element, Node},
+    parser::css::{properties::Dimensionality, Rule, Selector},
+};
 
 #[derive(Debug, Default)]
 pub struct Cascader {
@@ -18,8 +25,14 @@ impl<'a> Cascader {
 
     pub fn cascade(&mut self, input: &mut Vec<Node>, style: &StyleData, viewport: Viewport) {
         self.parent_prop_stack.push(CSSProps {
-            width: CSSValue::Value(Dimensionality::new(CSSNumber::Unit(Numeric::Integer(viewport.width as i32), Unit::Px))),
-            height: CSSValue::Value(Dimensionality::new(CSSNumber::Unit(Numeric::Integer(viewport.height as i32), Unit::Px))),
+            width: CSSValue::Value(Dimensionality::new(CSSNumber::Unit(
+                Numeric::Integer(viewport.width as i32),
+                Unit::Px,
+            ))),
+            height: CSSValue::Value(Dimensionality::new(CSSNumber::Unit(
+                Numeric::Integer(viewport.height as i32),
+                Unit::Px,
+            ))),
             ..Default::default()
         });
         self.cascade_internal(input, style);
@@ -64,7 +77,7 @@ impl<'a> Cascader {
         if let Block::Declarations(ref mut declarations) = rule.value {
             for declaration in declarations.values_mut() {
                 match declaration.kind {
-                    DeclarationKind::Unknown(..) => {},
+                    DeclarationKind::Unknown(..) => {}
                     DeclarationKind::Color(ref mut v) => {
                         if let CSSValue::Inherit = v {
                             *v = self.parent_prop_stack.last().unwrap().color.clone();
@@ -93,9 +106,56 @@ impl<'a> Cascader {
                             *v = CSSValue::<FontSize>::default();
                         }
                     }
+                    DeclarationKind::FontWeight(ref mut v) => {
+                        if let CSSValue::Inherit = v {
+                            *v = self.parent_prop_stack.last().unwrap().font_weight.clone();
+                        } else if let CSSValue::Initial = v {
+                            *v = CSSValue::<FontWeight>::default();
+                        } else if let CSSValue::Value(val) = v {
+                            match val {
+                                FontWeight::Normal => *val = FontWeight::Absolute(400.),
+                                FontWeight::Bold => *val = FontWeight::Absolute(700.),
+                                FontWeight::Bolder => {
+                                    if let CSSValue::Value(FontWeight::Absolute(w)) =
+                                        self.parent_prop_stack.last().unwrap().font_weight
+                                    {
+                                        if w < 350. {
+                                            *val = FontWeight::Absolute(400.);
+                                        } else if w >= 350. && w < 550. {
+                                            *val = FontWeight::Absolute(700.);
+                                        } else if w >= 550. && w < 900. {
+                                            *val = FontWeight::Absolute(900.);
+                                        }
+                                    }
+                                }
+                                FontWeight::Bolder => {
+                                    if let CSSValue::Value(FontWeight::Absolute(w)) =
+                                        self.parent_prop_stack.last().unwrap().font_weight
+                                    {
+                                        if w >= 100. && w < 550. {
+                                            *val = FontWeight::Absolute(100.);
+                                        } else if w >= 550. && w < 750. {
+                                            *val = FontWeight::Absolute(400.);
+                                        } else if w >= 750. {
+                                            *val = FontWeight::Absolute(700.);
+                                        }
+                                    }
+                                }
+                                FontWeight::Absolute(f) if *f > 1000. => {
+                                    *v = self.parent_prop_stack.last().unwrap().font_weight.clone();
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                     DeclarationKind::BackgroundColor(ref mut v) => {
                         if let CSSValue::Inherit = v {
-                            *v = self.parent_prop_stack.last().unwrap().background_color.clone();
+                            *v = self
+                                .parent_prop_stack
+                                .last()
+                                .unwrap()
+                                .background_color
+                                .clone();
                         } else if let CSSValue::Initial = v {
                             *v = CSSValue::<Colour>::default();
                         }
@@ -151,7 +211,12 @@ impl<'a> Cascader {
                     }
                     DeclarationKind::PaddingBottom(ref mut v) => {
                         if let CSSValue::Inherit = v {
-                            *v = self.parent_prop_stack.last().unwrap().padding_bottom.clone();
+                            *v = self
+                                .parent_prop_stack
+                                .last()
+                                .unwrap()
+                                .padding_bottom
+                                .clone();
                         } else if let CSSValue::Initial = v {
                             *v = CSSValue::<Dimensionality>::default();
                         }
@@ -170,42 +235,46 @@ impl<'a> Cascader {
                             *v = CSSValue::<Dimensionality>::default();
                         }
                     }
-		    DeclarationKind::FontFamily(ref mut v) => {
-			if let CSSValue::Inherit = v{
-			    *v = self.parent_prop_stack.last().unwrap().font_family.clone();
-			} else if let CSSValue::Initial = v{
-			    *v = CSSValue::<FontFamily>::default();
-			}
-			if let CSSValue::Value(ref mut f) = v {
-			    f.resolve();
-			}
-		    }
+                    DeclarationKind::FontFamily(ref mut v) => {
+                        if let CSSValue::Inherit = v {
+                            *v = self.parent_prop_stack.last().unwrap().font_family.clone();
+                        } else if let CSSValue::Initial = v {
+                            *v = CSSValue::<FontFamily>::default();
+                        }
+                        if let CSSValue::Value(ref mut f) = v {
+                            f.resolve();
+                        }
+                    }
                 }
             }
         }
     }
-    
+
     pub fn applicable(&self, selector: &Selector, tag_name: &String) -> bool {
         match selector {
             Selector::Both(l, r) => {
                 return self.applicable(l, tag_name) || self.applicable(r, tag_name);
-            },
+            }
             Selector::Universal => {
                 return true;
-            },
+            }
             Selector::Placeheld => {
                 return false;
-            },
+            }
             Selector::Type(t) => {
                 return t == tag_name;
-            },
+            }
             Selector::NextSibling(l, r) => {
                 return self.applicable(l, &self.last_sibling) && self.applicable(r, tag_name);
-            },
-            Selector::Child(l, r) => {
-                return self.applicable(l, &self.parent_name_stack.last().unwrap_or(&String::new())) && self.applicable(r, tag_name);
             }
-            a => { return false; },
+            Selector::Child(l, r) => {
+                return self
+                    .applicable(l, &self.parent_name_stack.last().unwrap_or(&String::new()))
+                    && self.applicable(r, tag_name);
+            }
+            a => {
+                return false;
+            }
         }
     }
 
@@ -214,6 +283,7 @@ impl<'a> Cascader {
             DeclarationKind::Color(v) => element.css.color = v,
             DeclarationKind::Display(v) => element.css.display = v,
             DeclarationKind::FontSize(v) => element.css.font_size = v,
+            DeclarationKind::FontWeight(v) => element.css.font_weight = v,
             DeclarationKind::TextAlign(v) => element.css.text_align = v,
             DeclarationKind::BackgroundColor(v) => element.css.background_color = v,
             DeclarationKind::Width(v) => element.css.width = v,
@@ -226,8 +296,8 @@ impl<'a> Cascader {
             DeclarationKind::PaddingBottom(v) => element.css.padding_bottom = v,
             DeclarationKind::PaddingLeft(v) => element.css.padding_left = v,
             DeclarationKind::PaddingRight(v) => element.css.padding_right = v,
-	    DeclarationKind::FontFamily(v) => element.css.font_family = v,
-            DeclarationKind::Unknown(_, _) => {},
+            DeclarationKind::FontFamily(v) => element.css.font_family = v,
+            DeclarationKind::Unknown(_, _) => {}
         }
     }
 }

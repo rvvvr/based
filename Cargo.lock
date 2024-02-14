@@ -139,6 +139,7 @@ dependencies = [
  "colours",
  "derivative",
  "font-kit",
+ "font-types",
  "futures",
  "read-fonts",
  "reqwest",

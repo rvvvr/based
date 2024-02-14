@@ -1,17 +1,20 @@
-use std::{fs::File, path::{PathBuf}, io::Read, num::ParseIntError, cmp::Ordering, collections::HashMap, mem::Discriminant};
+use std::{
+    cmp::Ordering, collections::HashMap, fs::File, io::Read, mem::Discriminant, num::ParseIntError,
+    path::PathBuf,
+};
 
+use font_types::Tag;
 use reqwest::Url;
-
 use thiserror::Error;
 
+use self::properties::{
+    Colour, Dimensionality, Display, FontFamily, FontSize, FontWeight, Property, TextAlign,
+};
+use super::Char;
 use crate::util::approx_eq;
 
-use self::properties::{Colour, Property, Display, FontSize, TextAlign, Dimensionality, FontFamily};
-
-use super::Char;
-
-pub mod properties;
 pub mod cascader;
+pub mod properties;
 
 #[derive(Debug, Default)]
 pub struct CSSParser {
@@ -79,18 +82,20 @@ impl CSSParser {
         Ok(styles)
     }
 
-    pub fn parse_declaration_list(&mut self) -> Result<Vec<(Discriminant<DeclarationKind>, Declaration)>, CSSError> {
+    pub fn parse_declaration_list(
+        &mut self,
+    ) -> Result<Vec<(Discriminant<DeclarationKind>, Declaration)>, CSSError> {
         let mut declarations = vec![];
         loop {
             match self.consume() {
-                CSSToken::Whitespace | CSSToken::Semicolon => {},
+                CSSToken::Whitespace | CSSToken::Semicolon => {}
                 a @ CSSToken::Ident(_) => {
                     let mut components = vec![Component::Token(a)];
                     loop {
                         match self.peek() {
                             CSSToken::Semicolon | CSSToken::EOF => {
                                 break;
-                            },
+                            }
                             _ => {
                                 components.push(self.consume_component_value()?);
                             }
@@ -119,13 +124,15 @@ impl CSSParser {
         while let Some(Component::Token(CSSToken::Whitespace)) = iter.peek() {
             iter.next();
         }
-        if let Some(Component::Token(CSSToken::Colon)) = iter.next() {} else {
+        if let Some(Component::Token(CSSToken::Colon)) = iter.next() {
+        } else {
             do yeet CSSError::EOFReached;
         }
         while let Some(Component::Token(CSSToken::Whitespace)) = iter.peek() {
             iter.next();
         }
-        if let Some(Component::Token(CSSToken::EOF)) = iter.peek() {} else {
+        if let Some(Component::Token(CSSToken::EOF)) = iter.peek() {
+        } else {
             builder.push_value(iter.next().unwrap().clone());
         }
         //TODO: Handle !important
@@ -137,17 +144,20 @@ impl CSSParser {
         let mut rules = vec![];
         loop {
             match self.consume() {
-                CSSToken::Whitespace => {},
+                CSSToken::Whitespace => {}
                 CSSToken::EOF => {
                     break;
-                },
+                }
                 a => {
                     self.reconsume();
                     rules.push(self.consume_qualified_rule()?);
                 }
             }
         }
-        Ok(Style { rules, level: StyleLevel::UserAgent})
+        Ok(Style {
+            rules,
+            level: StyleLevel::UserAgent,
+        })
     }
 
     fn consume_qualified_rule(&mut self) -> Result<Rule, CSSError> {
@@ -156,11 +166,11 @@ impl CSSParser {
             match self.consume() {
                 CSSToken::EOF => {
                     break;
-                },
+                }
                 CSSToken::CurlyOpen => {
                     rule_builder.append_to_blocks(self.consume_simple_block(CSSToken::CurlyClose)?);
                     break;
-                },
+                }
                 _ => {
                     self.reconsume();
                     rule_builder.append_to_prelude(self.consume_component_value()?);
@@ -190,7 +200,7 @@ impl CSSParser {
             match self.consume() {
                 a if a == ending => {
                     break;
-                },
+                }
                 CSSToken::EOF => {
                     do yeet CSSError::EOFReached;
                 }
@@ -218,30 +228,30 @@ impl CSSTokenizer {
             match self.consume() {
                 Char::Char('\u{0009}' | '\u{000A}' | '\u{0020}') => {
                     tokens.push(self.consume_whitespace_token()?);
-                },
+                }
                 Char::Char('A'..='Z' | 'a'..='z' | '_' | '\u{0080}'..='\u{10FFFF}') => {
                     self.reconsume();
                     tokens.push(self.consume_ident_like_token()?);
-                },
+                }
                 Char::Char(c @ ('>' | '*')) => {
                     tokens.push(CSSToken::Delim(Char::Char(c)));
                 }
                 Char::Char('{') => {
                     tokens.push(CSSToken::CurlyOpen);
-                },
+                }
                 Char::Char('}') => {
                     tokens.push(CSSToken::CurlyClose);
-                },
+                }
                 Char::Char(':') => {
                     tokens.push(CSSToken::Colon);
-                },
+                }
                 Char::Char(';') => {
                     tokens.push(CSSToken::Semicolon);
-                },
+                }
                 Char::Char('0'..='9') => {
                     self.reconsume();
                     tokens.push(self.consume_numeric()?);
-                },
+                }
                 Char::Char('+') => {
                     if let Char::Char('0'..='9') = self.peek() {
                         self.reconsume();
@@ -249,17 +259,17 @@ impl CSSTokenizer {
                     } else {
                         tokens.push(CSSToken::Delim(Char::Char('+')));
                     }
-                },
+                }
                 Char::Char(',') => {
                     tokens.push(CSSToken::Comma);
-                },
+                }
                 Char::Eof => {
                     tokens.push(CSSToken::EOF);
                     return Ok(());
-                },
+                }
                 a => {
                     do yeet CSSError::UnimplementedCodePoint(a);
-                },
+                }
             }
         }
     }
@@ -282,7 +292,9 @@ impl CSSTokenizer {
     }
 
     fn preprocess(&mut self) -> Result<(), CSSError> {
-        self.source = self.source.replace("\u{000D}", "\u{000A}")
+        self.source = self
+            .source
+            .replace("\u{000D}", "\u{000A}")
             .replace("\u{000C}", "\u{000A}")
             .replace("\u{000D}\u{000A}", "\u{000A}")
             .replace("\u{0000}", "\u{FFFD}");
@@ -321,7 +333,9 @@ impl CSSTokenizer {
 
     fn consume_comments(&mut self) -> Result<(), CSSError> {
         if matches!(self.peek(), Char::Char('/')) && matches!(self.peek_n(2), Char::Char('*')) {
-            while !(matches!(self.peek(), Char::Char('*')) && matches!(self.peek_n(2), Char::Char('/'))) {
+            while !(matches!(self.peek(), Char::Char('*'))
+                && matches!(self.peek_n(2), Char::Char('/')))
+            {
                 self.consume();
             }
             self.consume();
@@ -333,25 +347,27 @@ impl CSSTokenizer {
     fn consume_escaped(&mut self) -> Result<Option<char>, CSSError> {
         todo!();
         /*match self.consume() {
-          Char::Char('\n') => {
-          Ok(None)
-          }
-          }*/
+        Char::Char('\n') => {
+        Ok(None)
+        }
+        }*/
     }
 
     fn consume_ident_sequence(&mut self) -> Result<String, CSSError> {
         let mut result = String::with_capacity(10);
         loop {
             match self.consume() {
-                Char::Char(c @ ('A'..='Z' | 'a'..='z' | '0'..='9' | '\u{0080}'..='\u{10FFFF}' | '_' | '-' )) => {
+                Char::Char(
+                    c @ ('A'..='Z' | 'a'..='z' | '0'..='9' | '\u{0080}'..='\u{10FFFF}' | '_' | '-'),
+                ) => {
                     result.push(c);
-                },
+                }
                 Char::Char('\\') => {
                     self.reconsume();
                     if let Some(c) = self.consume_escaped()? {
                         result.push(c);
                     }
-                },
+                }
                 _ => {
                     self.reconsume();
                     break;
@@ -364,14 +380,14 @@ impl CSSTokenizer {
     fn consume_whitespace_token(&mut self) -> Result<CSSToken, CSSError> {
         loop {
             match self.consume() {
-                Char::Char('\u{0009}' | '\u{000A}' | '\u{0020}') => {},
+                Char::Char('\u{0009}' | '\u{000A}' | '\u{0020}') => {}
                 Char::Eof => {
                     break;
-                },
+                }
                 _ => {
                     self.reconsume();
                     break;
-                },
+                }
             }
         }
         Ok(CSSToken::Whitespace)
@@ -385,9 +401,17 @@ impl CSSTokenizer {
     fn consume_numeric(&mut self) -> Result<CSSToken, CSSError> {
         let number = self.consume_number()?;
         if let Char::Char(c) = self.peek() {
-            if ('A'..='Z').contains(&c) || ('a'..='z').contains(&c) || c as u32 > '\u{0080}' as u32 || c == '_' || c == '\\' {
+            if ('A'..='Z').contains(&c)
+                || ('a'..='z').contains(&c)
+                || c as u32 > '\u{0080}' as u32
+                || c == '_'
+                || c == '\\'
+            {
                 let unit = self.consume_ident_sequence()?;
-                return Ok(CSSToken::Number(CSSNumber::Unit(number, Unit::from_string(unit).unwrap_or_default())));
+                return Ok(CSSToken::Number(CSSNumber::Unit(
+                    number,
+                    Unit::from_string(unit).unwrap_or_default(),
+                )));
             } else if c == '%' {
                 self.consume();
                 return Ok(CSSToken::Number(CSSNumber::Percentage(number)));
@@ -400,22 +424,22 @@ impl CSSTokenizer {
         let mut rep = NumberRep::default();
         if let Char::Char('+' | '-') = self.peek() {
             rep.set_sign(match self.consume() {
-                Char::Char(c) => {c},
-                Char::Eof => {do yeet CSSError::EOFReached},
+                Char::Char(c) => c,
+                Char::Eof => do yeet CSSError::EOFReached,
             });
         };
         while let Char::Char('0'..='9') = self.peek() {
             rep.append_to_integer(match self.consume() {
-                Char::Char(c) => {c},
-                Char::Eof => {do yeet CSSError::EOFReached},
+                Char::Char(c) => c,
+                Char::Eof => do yeet CSSError::EOFReached,
             });
-        };
+        }
         if let Char::Char('.') = self.peek() {
             self.consume();
             while let Char::Char('0'..='9') = self.peek() {
                 rep.append_to_decimal(match self.consume() {
-                    Char::Char(c) => {c},
-                    Char::Eof => {do yeet CSSError::EOFReached},
+                    Char::Char(c) => c,
+                    Char::Eof => do yeet CSSError::EOFReached,
                 });
             }
         }
@@ -423,8 +447,8 @@ impl CSSTokenizer {
             self.consume();
             while let Char::Char('+' | '-' | '0'..='9') = self.peek() {
                 rep.append_to_exponent(match self.consume() {
-                    Char::Char(c) => {c},
-                    Char::Eof => {do yeet CSSError::EOFReached},
+                    Char::Char(c) => c,
+                    Char::Eof => do yeet CSSError::EOFReached,
                 });
             }
         }
@@ -461,7 +485,7 @@ pub enum StyleLevel {
     #[default]
     Author,
     User,
-    UserAgent
+    UserAgent,
 }
 
 impl Style {
@@ -513,17 +537,21 @@ impl RuleBuilder {
         for component in self.preludes {
             selector.append(component);
         }
-        let mut declarations: HashMap<Discriminant<DeclarationKind>, Declaration> = HashMap::default();
+        let mut declarations: HashMap<Discriminant<DeclarationKind>, Declaration> =
+            HashMap::default();
         for ref mut block in self.blocks {
             declarations.extend(block.parse_as_declarations()?)
         }
-        Ok(Rule { prelude: Prelude::Selector(selector), value: Block::Declarations(declarations) })
+        Ok(Rule {
+            prelude: Prelude::Selector(selector),
+            value: Block::Declarations(declarations),
+        })
     }
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct Rule {
-    pub prelude: Prelude,  
+    pub prelude: Prelude,
     pub value: Block,
 }
 
@@ -533,7 +561,8 @@ impl Rule {
             if let Block::Declarations(ref other_declarations) = other.value {
                 for (discriminant, declaration) in other_declarations {
                     if self_declarations.contains_key(discriminant) {
-                        let mutclaration = unsafe { self_declarations.get_mut(discriminant).unwrap_unchecked() };
+                        let mutclaration =
+                            unsafe { self_declarations.get_mut(discriminant).unwrap_unchecked() };
                         if declaration >= mutclaration {
                             *mutclaration = declaration.clone();
                         }
@@ -562,7 +591,7 @@ pub enum Block {
 
 #[derive(Debug, Clone, Default)]
 pub struct SimpleBlock {
-    pub value: Vec<Component>
+    pub value: Vec<Component>,
 }
 
 impl SimpleBlock {
@@ -570,15 +599,17 @@ impl SimpleBlock {
         self.value.push(component);
     }
 
-    pub fn parse_as_declarations(&mut self) -> Result<Vec<(Discriminant<DeclarationKind>, Declaration)>, CSSError> {
-        let tokens = self.value.iter().map(|c| match c {
-            Component::Token(t) => {
-                t.clone()
-            },
-            _ => {
-                CSSToken::Whitespace
-            },
-        }).collect::<Vec<_>>();
+    pub fn parse_as_declarations(
+        &mut self,
+    ) -> Result<Vec<(Discriminant<DeclarationKind>, Declaration)>, CSSError> {
+        let tokens = self
+            .value
+            .iter()
+            .map(|c| match c {
+                Component::Token(t) => t.clone(),
+                _ => CSSToken::Whitespace,
+            })
+            .collect::<Vec<_>>();
         let mut parser = CSSParser::default();
         parser.push_pretokenized(tokens);
         Ok(parser.parse_declaration_list()?)
@@ -613,37 +644,38 @@ impl Selector {
                                 //pseudo-classes
                                 //class selectors
                                 new_self = Selector::Type(s);
-                            },
+                            }
                             CSSToken::Delim(Char::Char('*')) => {
                                 new_self = Selector::Universal;
                             }
                             _ => panic!(),
                         }
-                    },
-                    _ => panic!(),
-                }
-            },
-            Selector::Type(_) => {
-                match component {
-                    Component::Token(t) => {
-                        match t {
-                            CSSToken::Whitespace => {
-                                new_self = self.clone();
-                            },
-                            CSSToken::Delim(Char::Char('>')) => {
-                                new_self = Selector::Child(Box::new(self.clone()), Box::new(Selector::Placeheld));
-                            },
-                            CSSToken::Delim(Char::Char('+')) => {
-                                new_self = Selector::NextSibling(Box::new(self.clone()), Box::new(Selector::Placeheld));
-                            },
-                            CSSToken::Comma => {
-                                new_self = Selector::Both(Box::new(self.clone()), Box::new(Selector::Placeheld));
-                            }
-                            _ => panic!("{:?}", t),
-                        }
                     }
                     _ => panic!(),
                 }
+            }
+            Selector::Type(_) => match component {
+                Component::Token(t) => match t {
+                    CSSToken::Whitespace => {
+                        new_self = self.clone();
+                    }
+                    CSSToken::Delim(Char::Char('>')) => {
+                        new_self =
+                            Selector::Child(Box::new(self.clone()), Box::new(Selector::Placeheld));
+                    }
+                    CSSToken::Delim(Char::Char('+')) => {
+                        new_self = Selector::NextSibling(
+                            Box::new(self.clone()),
+                            Box::new(Selector::Placeheld),
+                        );
+                    }
+                    CSSToken::Comma => {
+                        new_self =
+                            Selector::Both(Box::new(self.clone()), Box::new(Selector::Placeheld));
+                    }
+                    _ => panic!("{:?}", t),
+                },
+                _ => panic!(),
             },
             Selector::Child(l, r) => {
                 let new_l = l.clone();
@@ -656,7 +688,7 @@ impl Selector {
                 let mut new_r = r.clone();
                 new_r.append(component);
                 new_self = Selector::NextSibling(new_l, new_r);
-            },
+            }
             Selector::Both(l, r) => {
                 let new_l = l.clone();
                 let mut new_r = r.clone();
@@ -665,12 +697,11 @@ impl Selector {
             }
             Selector::Universal => {
                 new_self = self.clone();
-            }, //probably just the wind...
+            } //probably just the wind...
             _ => panic!(),
         }
         *self = new_self;
     }
-
 }
 
 #[derive(Default, Debug, Clone)]
@@ -682,7 +713,11 @@ pub struct DeclarationBuilder {
 
 impl DeclarationBuilder {
     pub fn from_kind(kind: String) -> Self {
-        Self { kind, value: vec![], level: StyleLevel::default()}
+        Self {
+            kind,
+            value: vec![],
+            level: StyleLevel::default(),
+        }
     }
 
     pub fn set_kind(&mut self, kind: String) {
@@ -703,22 +738,43 @@ impl DeclarationBuilder {
             "color" => DeclarationKind::Color(Colour::from_components(self.value)),
             "display" => DeclarationKind::Display(Display::from_components(self.value)),
             "font-size" => DeclarationKind::FontSize(FontSize::from_components(self.value)),
+            "font-weight" => DeclarationKind::FontWeight(FontWeight::from_components(self.value)),
             "text-align" => DeclarationKind::TextAlign(TextAlign::from_components(self.value)),
-            "background-color" => DeclarationKind::BackgroundColor(Colour::from_components(self.value)),
+            "background-color" => {
+                DeclarationKind::BackgroundColor(Colour::from_components(self.value))
+            }
             "width" => DeclarationKind::Width(Dimensionality::from_components(self.value)),
             "height" => DeclarationKind::Height(Dimensionality::from_components(self.value)),
-            "padding-top" => DeclarationKind::PaddingTop(Dimensionality::from_components(self.value)),
-            "padding-bottom" => DeclarationKind::PaddingBottom(Dimensionality::from_components(self.value)),
-            "padding-left" => DeclarationKind::PaddingLeft(Dimensionality::from_components(self.value)),
-            "padding-right" => DeclarationKind::PaddingRight(Dimensionality::from_components(self.value)),
+            "padding-top" => {
+                DeclarationKind::PaddingTop(Dimensionality::from_components(self.value))
+            }
+            "padding-bottom" => {
+                DeclarationKind::PaddingBottom(Dimensionality::from_components(self.value))
+            }
+            "padding-left" => {
+                DeclarationKind::PaddingLeft(Dimensionality::from_components(self.value))
+            }
+            "padding-right" => {
+                DeclarationKind::PaddingRight(Dimensionality::from_components(self.value))
+            }
             "margin-top" => DeclarationKind::MarginTop(Dimensionality::from_components(self.value)),
-            "margin-bottom" => DeclarationKind::MarginBottom(Dimensionality::from_components(self.value)),
-            "margin-left" => DeclarationKind::MarginLeft(Dimensionality::from_components(self.value)),
-            "margin-right" => DeclarationKind::MarginRight(Dimensionality::from_components(self.value)),
-	    "font-family" => DeclarationKind::FontFamily(FontFamily::from_components(self.value)),
+            "margin-bottom" => {
+                DeclarationKind::MarginBottom(Dimensionality::from_components(self.value))
+            }
+            "margin-left" => {
+                DeclarationKind::MarginLeft(Dimensionality::from_components(self.value))
+            }
+            "margin-right" => {
+                DeclarationKind::MarginRight(Dimensionality::from_components(self.value))
+            }
+            "font-family" => DeclarationKind::FontFamily(FontFamily::from_components(self.value)),
             _ => DeclarationKind::Unknown(self.kind, self.value),
         };
-        Ok(Declaration { important: false, kind, level: self.level })
+        Ok(Declaration {
+            important: false,
+            kind,
+            level: self.level,
+        })
     }
 }
 
@@ -731,31 +787,35 @@ pub struct Declaration {
 
 impl PartialEq for Declaration {
     fn eq(&self, other: &Self) -> bool {
-        return self.important == other.important && approx_eq::<DeclarationKind>(&self.kind, &other.kind) && approx_eq::<StyleLevel>(&self.level, &other.level);
+        return self.important == other.important
+            && approx_eq::<DeclarationKind>(&self.kind, &other.kind)
+            && approx_eq::<StyleLevel>(&self.level, &other.level);
     }
 }
 
 impl PartialOrd for Declaration {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(match (self.important, other.important, self.level, other.level) {
-            (_, _, StyleLevel::UserAgent, StyleLevel::UserAgent) => Ordering::Equal,
-            (_, _, StyleLevel::User, StyleLevel::User) => Ordering::Equal,
-            (_, _, StyleLevel::Author, StyleLevel::Author) => Ordering::Equal,
-            (true, false, _, _) => Ordering::Greater,
-            (false, true, _, _) => Ordering::Less,
-            (true, true, StyleLevel::UserAgent, StyleLevel::User) => Ordering::Greater,
-            (true, true, StyleLevel::User, StyleLevel::UserAgent) => Ordering::Less,
-            (true, true, StyleLevel::UserAgent, StyleLevel::Author) => Ordering::Greater,
-            (true, true, StyleLevel::Author, StyleLevel::UserAgent) => Ordering::Less,
-            (true, true, StyleLevel::User, StyleLevel::Author) => Ordering::Greater,
-            (true, true, StyleLevel::Author, StyleLevel::User) => Ordering::Less,
-            (false, false, StyleLevel::Author, StyleLevel::User) => Ordering::Greater,
-            (false, false, StyleLevel::User, StyleLevel::Author) => Ordering::Greater,
-            (false, false, StyleLevel::Author, StyleLevel::UserAgent) => Ordering::Greater,
-            (false, false, StyleLevel::UserAgent, StyleLevel::Author) => Ordering::Less,
-            (false, false, StyleLevel::User, StyleLevel::UserAgent) => Ordering::Greater,
-            (false, false, StyleLevel::UserAgent, StyleLevel::User) => Ordering::Less,
-        })
+        Some(
+            match (self.important, other.important, self.level, other.level) {
+                (_, _, StyleLevel::UserAgent, StyleLevel::UserAgent) => Ordering::Equal,
+                (_, _, StyleLevel::User, StyleLevel::User) => Ordering::Equal,
+                (_, _, StyleLevel::Author, StyleLevel::Author) => Ordering::Equal,
+                (true, false, _, _) => Ordering::Greater,
+                (false, true, _, _) => Ordering::Less,
+                (true, true, StyleLevel::UserAgent, StyleLevel::User) => Ordering::Greater,
+                (true, true, StyleLevel::User, StyleLevel::UserAgent) => Ordering::Less,
+                (true, true, StyleLevel::UserAgent, StyleLevel::Author) => Ordering::Greater,
+                (true, true, StyleLevel::Author, StyleLevel::UserAgent) => Ordering::Less,
+                (true, true, StyleLevel::User, StyleLevel::Author) => Ordering::Greater,
+                (true, true, StyleLevel::Author, StyleLevel::User) => Ordering::Less,
+                (false, false, StyleLevel::Author, StyleLevel::User) => Ordering::Greater,
+                (false, false, StyleLevel::User, StyleLevel::Author) => Ordering::Greater,
+                (false, false, StyleLevel::Author, StyleLevel::UserAgent) => Ordering::Greater,
+                (false, false, StyleLevel::UserAgent, StyleLevel::Author) => Ordering::Less,
+                (false, false, StyleLevel::User, StyleLevel::UserAgent) => Ordering::Greater,
+                (false, false, StyleLevel::UserAgent, StyleLevel::User) => Ordering::Less,
+            },
+        )
     }
 }
 
@@ -763,9 +823,10 @@ impl PartialOrd for Declaration {
 pub enum DeclarationKind {
     Unknown(String, Vec<Component>),
     Color(CSSValue<Colour>), // as much as i'd like to use the right spelling of colour here, it
-                             // should be this way to be idiomatic.
+    // should be this way to be idiomatic.
     Display(CSSValue<Display>),
     FontSize(CSSValue<FontSize>),
+    FontWeight(CSSValue<FontWeight>),
     TextAlign(CSSValue<TextAlign>),
     BackgroundColor(CSSValue<Colour>),
     Width(CSSValue<Dimensionality>),
@@ -786,6 +847,7 @@ pub struct CSSProps {
     pub color: CSSValue<Colour>,
     pub display: CSSValue<Display>,
     pub font_size: CSSValue<FontSize>,
+    pub font_weight: CSSValue<FontWeight>,
     pub text_align: CSSValue<TextAlign>,
     pub background_color: CSSValue<Colour>,
     pub width: CSSValue<Dimensionality>,
@@ -799,6 +861,19 @@ pub struct CSSProps {
     pub margin_left: CSSValue<Dimensionality>,
     pub margin_right: CSSValue<Dimensionality>,
     pub font_family: CSSValue<FontFamily>,
+}
+
+impl CSSProps {
+    pub fn val_for_variable_tag(&self, tag: Tag) -> Option<f64> {
+        if Tag::new_checked(&[b'w', b'g', b'h', b't']).unwrap() == tag {
+            return if let FontWeight::Absolute(f) = self.font_weight.unwrap() {
+                Some(f)
+            } else {
+                Some(400.)
+            };
+        }
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -832,9 +907,7 @@ pub enum CSSNumber {
 impl CSSNumber {
     pub fn unwrap(&self) -> Numeric {
         match self {
-            CSSNumber::Number(n) | CSSNumber::Unit(n, _) | CSSNumber::Percentage(n) => {
-                n.clone()
-            }
+            CSSNumber::Number(n) | CSSNumber::Unit(n, _) | CSSNumber::Percentage(n) => n.clone(),
         }
     }
 }
@@ -901,14 +974,11 @@ pub enum Numeric {
 }
 
 impl Numeric {
-    pub fn unwrap_f64(&self) -> f64 { // will continue implementing these as i need them.
+    pub fn unwrap_f64(&self) -> f64 {
+        // will continue implementing these as i need them.
         match self {
-            Self::Integer(i) => {
-                *i as f64
-            },
-            Self::Number(f) => {
-                *f as f64
-            }
+            Self::Integer(i) => *i as f64,
+            Self::Number(f) => *f as f64,
         }
     }
 }
@@ -940,11 +1010,13 @@ impl NumberRep {
 
     pub fn into_numeric(&self) -> Result<Numeric, CSSError> {
         let sign = match self.sign {
-            Sign::Plus => {1},
-            Sign::Minus => {-1},
+            Sign::Plus => 1,
+            Sign::Minus => -1,
         };
         if self.decimal_part.is_empty() && self.exponent_part.is_empty() {
-            Ok(Numeric::Integer(sign * str::parse::<i32>(&self.integer_part)?))
+            Ok(Numeric::Integer(
+                sign * str::parse::<i32>(&self.integer_part)?,
+            ))
         } else {
             todo!();
         }
@@ -961,9 +1033,9 @@ pub enum Sign {
 impl Sign {
     pub fn from_char(c: char) -> Self {
         if c == '-' {
-            return Self::Minus
+            return Self::Minus;
         }
-        return Self::Plus
+        return Self::Plus;
     }
 }
 
@@ -977,10 +1049,10 @@ pub enum CSSValue<T: Property + Default + Clone> {
 
 impl<T: Property + Default + Clone> CSSValue<T> {
     pub fn unwrap(&self) -> T {
-	if let Self::Value(t) = self {
-	    t.clone()
-	} else {
-	    T::default()
-	}
+        if let Self::Value(t) = self {
+            t.clone()
+        } else {
+            T::default()
+        }
     }
 }

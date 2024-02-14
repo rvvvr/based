@@ -9,6 +9,7 @@ edition = "2021"
 colours = "0.1.1" # the right way to spell the word btw...
 derivative = "2.2.0"
 font-kit = "0.12.0"
+font-types = "0.4.2"
 futures = "0.3.30"
 read-fonts = "0.15.4"
 reqwest = { version = "0.11.23", features = ["json", "rustls-tls"], default-features = false} #rustls makes nixos builds way easier :3

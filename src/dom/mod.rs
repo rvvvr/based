@@ -1,4 +1,8 @@
-use crate::{parser::css::{CSSSource, Style, StyleData, CSSProps, cascader::Cascader}, context::Viewport, layout::{LayoutInfo, text::LaidoutText}};
+use crate::{
+    context::Viewport,
+    layout::{text::LaidoutText, LayoutInfo},
+    parser::css::{cascader::Cascader, CSSProps, CSSSource, Style, StyleData},
+};
 
 #[derive(Default, Debug)]
 pub struct Document {
@@ -8,16 +12,24 @@ pub struct Document {
 }
 
 pub trait DOMElement {
-    fn insert_element(&mut self, tag_name: String, attributes: Vec<(String, String)>) -> DOMCoordinate;
-    fn insert_document_type(&mut self, name: String, system_id: String, public_id: String, quirks: bool);
+    fn insert_element(
+        &mut self,
+        tag_name: String,
+        attributes: Vec<(String, String)>,
+    ) -> DOMCoordinate;
+    fn insert_document_type(
+        &mut self,
+        name: String,
+        system_id: String,
+        public_id: String,
+        quirks: bool,
+    );
     fn insert_comment(&mut self, data: String);
     fn get_element_for_coordinate(&mut self, coordinate: DOMCoordinate) -> &mut Element;
 }
 
 impl Document {
-    pub fn print_tree(&self) {
-        
-    }
+    pub fn print_tree(&self) {}
 
     pub fn find_css_sources(&self) -> Vec<CSSSource> {
         let mut out = Vec::with_capacity(5);
@@ -37,7 +49,7 @@ impl Document {
         }
     }
 
-    pub fn add_styles(&mut self, styles: Vec<Style>)  {
+    pub fn add_styles(&mut self, styles: Vec<Style>) {
         self.style.styles.extend(styles);
     }
 
@@ -59,8 +71,18 @@ impl Document {
 }
 
 impl DOMElement for Document {
-    fn insert_document_type(&mut self, name: String, system_id: String, public_id: String, quirks: bool) {
-        self.children.push(Node::DocumentType(DocumentType { name, public_id, system_id }));
+    fn insert_document_type(
+        &mut self,
+        name: String,
+        system_id: String,
+        public_id: String,
+        quirks: bool,
+    ) {
+        self.children.push(Node::DocumentType(DocumentType {
+            name,
+            public_id,
+            system_id,
+        }));
         if quirks {
             self.document_mode = DocumentMode::Quirks;
         }
@@ -70,25 +92,41 @@ impl DOMElement for Document {
         self.children.push(Node::Comment { data });
     }
 
-    fn insert_element(&mut self, tag_name: String, attributes: Vec<(String, String)>) -> DOMCoordinate {
+    fn insert_element(
+        &mut self,
+        tag_name: String,
+        attributes: Vec<(String, String)>,
+    ) -> DOMCoordinate {
         let coordinate = DOMCoordinate {
-            indices: vec![self.children.len()]
+            indices: vec![self.children.len()],
         };
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes, layout_info: LayoutInfo::default() }));
+        self.children.push(Node::Element(Element {
+            children: vec![],
+            coordinate: coordinate.clone(),
+            css: CSSProps::default(),
+            tag_name,
+            data: String::new(),
+            attributes,
+            layout_info: LayoutInfo::default(),
+        }));
         return coordinate;
     }
-    
+
     #[allow(unreachable_code)]
     fn get_element_for_coordinate(&mut self, coordinate: DOMCoordinate) -> &mut Element {
-        return if let Some(Node::Element(ref mut element)) = self.children.get_mut(*coordinate.indices.get(0).unwrap()) {
+        return if let Some(Node::Element(ref mut element)) =
+            self.children.get_mut(*coordinate.indices.get(0).unwrap())
+        {
             if coordinate.indices.len() == 1 {
                 return element;
             } else {
-                return element.get_element_for_coordinate(DOMCoordinate { indices: coordinate.indices[1..].to_vec() });
+                return element.get_element_for_coordinate(DOMCoordinate {
+                    indices: coordinate.indices[1..].to_vec(),
+                });
             }
         } else {
             panic!();
-        }
+        };
     }
 }
 
@@ -119,42 +157,61 @@ pub struct Element {
 }
 
 impl DOMElement for Element {
-    fn insert_element(&mut self, tag_name: String, attributes: Vec<(String, String)>) -> DOMCoordinate {
+    fn insert_element(
+        &mut self,
+        tag_name: String,
+        attributes: Vec<(String, String)>,
+    ) -> DOMCoordinate {
         let mut coordinate = DOMCoordinate {
-            indices: self.coordinate.indices.clone()
+            indices: self.coordinate.indices.clone(),
         };
         coordinate.indices.push(self.children.len());
-        self.children.push(Node::Element(Element { children: vec![], coordinate: coordinate.clone(), css: CSSProps::default(), tag_name, data: String::new(), attributes, layout_info: LayoutInfo::default() }));
+        self.children.push(Node::Element(Element {
+            children: vec![],
+            coordinate: coordinate.clone(),
+            css: CSSProps::default(),
+            tag_name,
+            data: String::new(),
+            attributes,
+            layout_info: LayoutInfo::default(),
+        }));
         return coordinate;
     }
     fn insert_comment(&mut self, data: String) {
         todo!();
     }
-    fn insert_document_type(&mut self, name: String, system_id: String, public_id: String, quirks: bool) {
+    fn insert_document_type(
+        &mut self,
+        name: String,
+        system_id: String,
+        public_id: String,
+        quirks: bool,
+    ) {
         todo!();
     }
 
     #[allow(unreachable_code)] // why is this unreachable???
     fn get_element_for_coordinate(&mut self, coordinate: DOMCoordinate) -> &mut Element {
-        return if let Some(Node::Element(ref mut element)) = self.children.get_mut(*coordinate.indices.get(0).unwrap()) {
+        return if let Some(Node::Element(ref mut element)) =
+            self.children.get_mut(*coordinate.indices.get(0).unwrap())
+        {
             if coordinate.indices.len() == 1 {
                 return element;
             } else {
-                return element.get_element_for_coordinate(DOMCoordinate { indices: coordinate.indices[1..].to_vec() });
+                return element.get_element_for_coordinate(DOMCoordinate {
+                    indices: coordinate.indices[1..].to_vec(),
+                });
             }
         } else {
             panic!();
-        }
+        };
     }
 }
 
 #[derive(Debug)]
 pub enum Node {
     DocumentType(DocumentType),
-    Comment {
-        data: String,
-
-    },
+    Comment { data: String },
     Element(Element),
     Text(String),
     LaidoutText(LaidoutText),
@@ -165,4 +222,3 @@ pub enum Node {
 pub struct DOMCoordinate {
     indices: Vec<usize>,
 }
-

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
-use futures::executor;
 
 use based::context::Context;
+use futures::executor;
 use shmontshmend::Frontend;
 
 pub mod shmontshmend;
