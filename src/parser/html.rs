@@ -3,7 +3,9 @@ use std::{
 };
 
 use derivative::Derivative;
+use reqwest::IntoUrl;
 use thiserror::Error;
+use url::Url;
 
 use super::{css::CSSParser, Char};
 use crate::{
@@ -335,7 +337,7 @@ impl HTMLParser {
                 }
                 self.insert_character(char, document)?;
             }
-            Token::StartTag { name, attributes } if name == "p" => {
+            Token::StartTag { name, attributes } if name == "p" || name == "center" => {
                 let coordinate = document
                     .get_element_for_coordinate(self.current_element().unwrap().coordinate)
                     .insert_element(name, attributes);
@@ -375,7 +377,7 @@ impl HTMLParser {
                     }
                 }
             }
-            Token::EndTag { name } if name == "p" => {
+            Token::EndTag { name } if name == "p" || name == "center" => {
                 while let Some(element) = self.open_elements.pop() {
                     let element_name = &document
                         .get_element_for_coordinate(element.coordinate)
@@ -532,8 +534,14 @@ impl HTMLParser {
     }
 
     pub fn load_from_file(&mut self, path: PathBuf) -> Result<(), ParserError> {
-        File::open(path).unwrap().read_to_string(&mut self.source);
+        File::open(path).unwrap().read_to_string(&mut self.source).unwrap();
         Ok(())
+    }
+
+    pub fn load_from_whatever(&mut self, whatever: &mut impl Read) -> Result<(), ParserError> {
+	whatever.read_to_string(&mut self.source).unwrap();
+	println!("{}", self.source);
+	Ok(())
     }
 
     fn tokenize_data(&mut self) -> Result<(), ParserError> {
@@ -1365,7 +1373,7 @@ impl HTMLParser {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, PartialOrd)]
 pub enum Token {
     #[default]
     EOF,
@@ -1625,4 +1633,98 @@ pub enum ParsingError {
 #[derive(Default, Debug, Clone)]
 struct OpenElement {
     coordinate: DOMCoordinate,
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+
+    #[inline(always)]
+    //many such cases
+    fn assert_emitted(input: &str, expected: &[Token]) {
+	let mut parser = HTMLParser::default();
+	parser.load_from_whatever(&mut Cursor::new(input));
+	while parser.source_idx != parser.source.len() {
+	    parser.tokenize();
+	}
+	parser.emit_buffer.make_contiguous();
+	assert_eq!(parser.emit_buffer.as_slices().0, expected);
+    }
+    
+    #[test]
+    fn test_normalization() {
+	let input = "\u{000D}\u{000A}Hello lolcat!!!!!\u{000D}what's good!\u{000A}\u{000D}\u{000A}\ngaming or whatever..";
+	let mut parser = HTMLParser::default();
+	parser.load_from_whatever(&mut Cursor::new(input));
+	parser.normalize_source();
+	parser.handle_token_for_after_after_body(Token::EOF, &mut Document::default());
+	assert_eq!(parser.source, "\u{000A}Hello lolcat!!!!!\u{000A}what's good!\u{000A}\u{000A}\ngaming or whatever..");
+    }
+
+    #[test]
+    fn test_tokenize_simple_open_tag() {
+	let input = "<test>";
+	let expected = Token::StartTag {
+	    name: "test".to_string(),
+	    attributes: Vec::new(),
+	};
+	assert_emitted(input, &[expected]);
+    }
+
+    #[test]
+    fn test_tokenize_simple_closing_tag() {
+	let input = "</test>";
+	let expected = Token::EndTag {
+	    name: "test".to_string(),
+	};
+	assert_emitted(input, &[expected]);
+    }
+
+    #[test]
+    fn test_tokenize_open_tag_with_attributes() {
+	let input =  "<test a=\"b\" c=\"d\" efg=\"hijkl\">";
+	let expected = Token::StartTag {
+	    name: "test".to_string(),
+	    attributes: vec![("a".to_string(), "b".to_string()),
+			     ("c".to_string(), "d".to_string()),
+			     ("efg".to_string(), "hijkl".to_string()),],
+	};
+	assert_emitted(input, &[expected]);
+    }
+
+    #[test]
+    fn test_tokenize_simple_markup_declaration() {
+	let input = "<!DOCTYPE html>";
+	let expected = Token::Doctype {
+	    name: "html".to_string(),
+	    public_id: String::new(),
+	    system_id: String::new(),
+	    force_quirks: false,
+	};
+	assert_emitted(input, &[expected]);
+    }
+
+    #[test]
+    fn test_tokenize_comment() {
+	let input = "<!-- i've been roamin' around, always lookin' down at all i seeeeeeeeeee -->";
+	let expected = Token::Comment {
+	    data: " i've been roamin' around, always lookin' down at all i seeeeeeeeeee ".to_string(),
+	};
+	assert_emitted(input, &[expected]);
+    }
+
+    #[test]
+    fn test_tokenize_chars() {
+	let input = "abc";
+	let expected = vec![Token::Character {char: 'a'},
+			    Token::Character {char: 'b'},
+			    Token::Character {char: 'c'},];
+	assert_emitted(input, &expected);
+    }
+
+    //parser tests go here
+
 }

@@ -1,3 +1,4 @@
+
 [package]
 name = "based"
 version = "0.1.0"
@@ -12,8 +13,9 @@ font-kit = "0.12.0"
 font-types = "0.4.2"
 futures = "0.3.30"
 read-fonts = "0.15.4"
-reqwest = { version = "0.11.23", features = ["json", "rustls-tls"], default-features = false} #rustls makes nixos builds way easier :3
+reqwest = { version = "0.11.23", features = ["json", "rustls-tls", "cookies"], default-features = false} #rustls makes nixos builds way easier :3
 thiserror = "1.0.56"
+tokio = {version = "1.36.0", features = ["full"]}
 tracing = "0.1.40"
 url = "2.5.0"
 vello = { git = "https://github.com/linebender/vello.git" } 

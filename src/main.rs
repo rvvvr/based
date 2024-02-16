@@ -3,11 +3,13 @@ use std::path::PathBuf;
 use based::context::Context;
 use futures::executor;
 use shmontshmend::Frontend;
+use url::Url;
 
 pub mod shmontshmend;
 
-fn main() {
-    let mut context = Context::default();
+#[tokio::main]
+async fn main() {
+    let mut context = Context::new(Url::parse("https://itcorp.com").unwrap());
     let mut frontend = Frontend::default();
-    executor::block_on(frontend.run(context));
+    frontend.run(context).await;
 }

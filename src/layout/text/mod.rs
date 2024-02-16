@@ -100,9 +100,9 @@ impl<'a> TextLayoutifier<'a> {
             let gid = cmap.map_codepoint(ch as u32);
             if let Some(id) = gid {
                 glyph.id = id.to_u16();
-                font_glyphs.push(glyph);
             }
-        }
+	    font_glyphs.push(glyph);
+	}
         let font_size = self.unwrap_font_size();
 
         let font_unit_scale_factor = (font_size * self.scale_factor) / head.units_per_em() as f64;

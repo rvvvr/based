@@ -10,6 +10,3 @@ cargo run
 which will automatically parse and open a basic frontend with tests/basic.html. If you want to change up the file, you'll have to head over [here](https://github.com/rvvvr/based/blob/master/src/context/mod.rs#L30-L33) and change the url yourself. I'll make it a bit easier to choose a page at some point in the future.
 
 If you're not on nix(os), you can still check out shell.nix to see what dependencies you might need, and install them with your favourite package manager. After that, just throw a `cargo run` into your own console, and witness the glory that is based.
-
-## Where are the tests?
-Unit tests are hard to write, so I have a separate branch on my local machine where I'm slowly writing them out when I get the motivation. I'll merge and upstream once the code is mostly covered. Same goes for documentation.

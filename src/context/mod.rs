@@ -1,3 +1,6 @@
+use std::io::Cursor;
+
+use reqwest::{Client, ClientBuilder};
 use url::Url;
 use vello::{peniko::Font, SceneBuilder};
 
@@ -17,6 +20,7 @@ pub struct Context {
     viewport: Viewport,
     renderer: PageRenderer,
     fonts: Vec<Font>,
+    client: Client,
 }
 
 impl Default for Context {
@@ -29,29 +33,42 @@ impl Default for Context {
             renderer: PageRenderer::default(),
             url: Url::from_directory_path(std::env::current_dir().unwrap())
                 .unwrap()
-                .join("tests/basic.html")
+                .join("real_shit/basic.html")
                 .unwrap(),
             fonts: Vec::new(),
+	    client: Self::make_request_client(),
         }
     }
 }
 
 impl Context {
+    pub fn make_request_client() -> Client {
+	ClientBuilder::new()
+	    .user_agent("Mozilla/5.0 (who cares) based/0.0.0 (https://github.com/rvvvr/based)") // to be made a better static somewhere
+	    .cookie_store(true) //to be replaced with my own
+	    .build().unwrap()
+    }
+    
     pub fn new(url: Url) -> Self {
         Self {
             url,
+	    client: Self::make_request_client(),
             ..Default::default()
         }
     }
 
-    pub fn load(&mut self) {
+    pub async fn load(&mut self) {
+	println!("{:?}", self.url);
         if self.url.scheme() == "file" {
             self.html
                 .load_from_file(self.url.to_file_path().unwrap())
                 .unwrap();
+        } else if let "http" | "https" = self.url.scheme() {
+	    let mut shmeep = self.client.get(self.url.clone()).send().await.unwrap().bytes().await.unwrap();
+            self.html.load_from_whatever(&mut Cursor::new(shmeep)).unwrap();
         } else {
-            unimplemented!();
-        }
+	    unimplemented!();
+	}
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
@@ -83,6 +100,8 @@ impl Context {
     }
 }
 
+
+//this type is awkward, i'd like to remove it at some point.
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Viewport {
     pub width: usize,

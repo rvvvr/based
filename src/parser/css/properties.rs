@@ -248,7 +248,7 @@ impl FontFamily {
                 .iter()
                 .map(|n| FamilyName::Title(n.clone()))
                 .collect::<Vec<_>>();
-            defined_fonts.push(FamilyName::Monospace); //final fallback.
+            defined_fonts.push(FamilyName::Serif); //final fallback.
             let font_data = SystemSource::new()
                 .select_best_match(defined_fonts.as_slice(), &Properties::new())
                 .unwrap()
@@ -288,7 +288,7 @@ impl Property for FontFamily {
 
 impl Default for FontFamily {
     fn default() -> Self {
-        Self::Unresoved(Vec::new())
+        Self::Unresoved(vec![String::from("Liberation Sans")])
     }
 }
 

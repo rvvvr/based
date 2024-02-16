@@ -252,12 +252,12 @@ impl CSSTokenizer {
                     self.reconsume();
                     tokens.push(self.consume_numeric()?);
                 }
-                Char::Char('+') => {
+                Char::Char(c @ ('+' | '-' | '.')) => {
                     if let Char::Char('0'..='9') = self.peek() {
                         self.reconsume();
                         tokens.push(self.consume_numeric()?);
                     } else {
-                        tokens.push(CSSToken::Delim(Char::Char('+')));
+                        tokens.push(CSSToken::Delim(Char::Char(c)));
                     }
                 }
                 Char::Char(',') => {
@@ -294,9 +294,9 @@ impl CSSTokenizer {
     fn preprocess(&mut self) -> Result<(), CSSError> {
         self.source = self
             .source
+	    .replace("\u{000D}\u{000A}", "\u{000A}")
             .replace("\u{000D}", "\u{000A}")
             .replace("\u{000C}", "\u{000A}")
-            .replace("\u{000D}\u{000A}", "\u{000A}")
             .replace("\u{0000}", "\u{FFFD}");
         //TODO: Filter out surrogates
         Ok(())
@@ -361,13 +361,17 @@ impl CSSTokenizer {
                     c @ ('A'..='Z' | 'a'..='z' | '0'..='9' | '\u{0080}'..='\u{10FFFF}' | '_' | '-'),
                 ) => {
                     result.push(c);
-                }
+                },
                 Char::Char('\\') => {
                     self.reconsume();
                     if let Some(c) = self.consume_escaped()? {
                         result.push(c);
                     }
-                }
+                },
+		//caught this edge case while unit testing! turns out they are valuable!!!!
+		Char::Eof => {
+		    break;
+		},
                 _ => {
                     self.reconsume();
                     break;
@@ -445,7 +449,13 @@ impl CSSTokenizer {
         }
         if let Char::Char('E' | 'e') = self.peek() {
             self.consume();
-            while let Char::Char('+' | '-' | '0'..='9') = self.peek() {
+	    if let Char::Char('-' | '+') = self.peek() {
+		rep.set_e_sign(match self.consume() {
+		    Char::Char(c) => c,
+		    Char::Eof => do yeet CSSError::EOFReached,
+		});
+	    }
+            while let Char::Char('0'..='9') = self.peek() {
                 rep.append_to_exponent(match self.consume() {
                     Char::Char(c) => c,
                     Char::Eof => do yeet CSSError::EOFReached,
@@ -986,6 +996,7 @@ impl Numeric {
 #[derive(Default, Debug, Clone)]
 pub struct NumberRep {
     sign: Sign,
+    e_sign: Sign,
     integer_part: String,
     decimal_part: String,
     exponent_part: String,
@@ -994,6 +1005,10 @@ pub struct NumberRep {
 impl NumberRep {
     pub fn set_sign(&mut self, char: char) {
         self.sign = Sign::from_char(char);
+    }
+
+    pub fn set_e_sign(&mut self, char: char) {
+	self.sign = Sign::from_char(char);
     }
 
     pub fn append_to_integer(&mut self, char: char) {
@@ -1015,10 +1030,18 @@ impl NumberRep {
         };
         if self.decimal_part.is_empty() && self.exponent_part.is_empty() {
             Ok(Numeric::Integer(
-                sign * str::parse::<i32>(&self.integer_part)?,
+                sign * str::parse::<i32>(&self.integer_part).unwrap_or(0),
             ))
         } else {
-            todo!();
+	    let int = str::parse::<f32>(&self.integer_part).unwrap_or(0.);
+	    let frac = str::parse::<f32>(&self.decimal_part).unwrap_or(0.);
+	    let e_sign = match self.e_sign {
+		Sign::Plus => 1.,
+		Sign::Minus => -1.,
+	    };
+	    let exp = str::parse::<f32>(&self.exponent_part).unwrap_or(0.);
+            Ok(Numeric::Number(
+		sign as f32 * (int + (frac * (10_f32).powi(-1 * self.decimal_part.len() as i32))) * (10_f32).powf(e_sign * exp)))
         }
     }
 }
@@ -1054,5 +1077,61 @@ impl<T: Property + Default + Clone> CSSValue<T> {
         } else {
             T::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_preprocess() {
+	let input = "\u{000D}shmrmep\u{000C}shmrospo\u{000D}\u{000A}\u{0000}";
+	let mut tokenizer = CSSTokenizer::default();
+	tokenizer.load_raw(&String::from(input));
+	tokenizer.preprocess();
+	assert_eq!(tokenizer.source, String::from("\u{000A}shmrmep\u{000A}shmrospo\u{000A}\u{FFFD}"));
+    }
+
+    #[test]
+    fn test_tokenize_ident() {
+	let input = "_shmeep_shmOp_SHMORP";
+	let mut tokenizer = CSSTokenizer::default();
+	tokenizer.load_raw(&String::from(input));
+	let mut result = Vec::new();
+	tokenizer.tokenize(&mut result).unwrap();
+	assert_eq!(result.as_slice(), &[CSSToken::Ident(String::from("_shmeep_shmOp_SHMORP")), CSSToken::EOF]);
+    }
+
+    #[test]
+    fn test_tokenize_integers() {
+	let input = "543 -543 +543 543% 543px";
+	let mut tokenizer = CSSTokenizer::default();
+	tokenizer.load_raw(&String::from(input));
+	let mut result = Vec::new();
+	tokenizer.tokenize(&mut result).unwrap();
+	assert_eq!(result.as_slice(), &[CSSToken::Number(CSSNumber::Number(Numeric::Integer(543))), CSSToken::Whitespace,
+				     CSSToken::Number(CSSNumber::Number(Numeric::Integer(-543))), CSSToken::Whitespace,
+				     CSSToken::Number(CSSNumber::Number(Numeric::Integer(543))), CSSToken:: Whitespace,
+				     CSSToken::Number(CSSNumber::Percentage(Numeric::Integer(543))), CSSToken::Whitespace,
+				     CSSToken::Number(CSSNumber::Unit(Numeric::Integer(543), Unit::Px)),
+				     CSSToken::EOF]);
+    }
+
+    #[test]
+    fn test_tokenize_floats() {
+	let input = "3.2 +3.2 -3.2 3e2 +3e2 -3e2 .3";
+	let mut tokenizer = CSSTokenizer::default();
+	tokenizer.load_raw(&String::from(input));
+	let mut result = Vec::new();
+	tokenizer.tokenize(&mut result).unwrap();
+	assert_eq!(result.as_slice(),
+		  &[CSSToken::Number(CSSNumber::Number(Numeric::Number(3.2))), CSSToken::Whitespace,
+		    CSSToken::Number(CSSNumber::Number(Numeric::Number(3.2))), CSSToken::Whitespace,
+		    CSSToken::Number(CSSNumber::Number(Numeric::Number(-3.2))), CSSToken::Whitespace,
+		    CSSToken::Number(CSSNumber::Number(Numeric::Number(300.))), CSSToken::Whitespace,
+		    CSSToken::Number(CSSNumber::Number(Numeric::Number(300.))), CSSToken::Whitespace,
+		    CSSToken::Number(CSSNumber::Number(Numeric::Number(-300.))), CSSToken::Whitespace,
+		    CSSToken::Number(CSSNumber::Number(Numeric::Number(0.3))), CSSToken::EOF,]);
     }
 }

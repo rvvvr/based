@@ -28,7 +28,7 @@ impl Frontend {
         let mut ctx = RenderContext::new().unwrap();
         let size = window.inner_size();
         context.resize(size.width as usize, size.height as usize);
-        context.load();
+        context.load().await;
         context.go();
         let mut surface = ctx
             .create_surface(&window, size.width, size.height)
