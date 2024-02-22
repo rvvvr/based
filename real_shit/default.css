@@ -46,6 +46,11 @@ h1 {
     font-weight: bold;
 }
 
+h2 {
+    font-size: 26pt;
+    font-weight: bold;
+}
+
 center {
     text-align: center;
 }
